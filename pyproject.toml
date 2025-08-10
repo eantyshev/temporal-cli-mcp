@@ -1,0 +1,19 @@
+[project]
+name = "temporal-cli-mcp"
+version = "0.1.0"
+description = "MCP server exposing Temporal CLI functionality"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=0.2.0",
+    "pydantic>=2.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[project.scripts]
+temporal-cli-mcp = "temporal_cli_mcp.__main__:main"

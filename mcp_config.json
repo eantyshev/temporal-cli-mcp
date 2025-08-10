@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "temporal-cli": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "temporal_cli_mcp"],
+  "cwd": "/home/evgeny/mcp/temporal-cli-mcp"
+    }
+  }
+}
