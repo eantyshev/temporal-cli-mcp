@@ -48,34 +48,22 @@ class AsyncCommandExecutor(CommandExecutor):
             stdout_str = stdout.decode('utf-8') if stdout else ""
             stderr_str = stderr.decode('utf-8') if stderr else ""
             
+            result = {
+                "success": proc.returncode == 0,
+                "returncode": proc.returncode,
+                "stdout": stdout_str,
+                "stderr": stderr_str,
+                "cmd": cmd,
+            }
+            
             if proc.returncode == 0:
                 try:
-                    parsed_data = json.loads(stdout_str) if stdout_str else None
-                    # Return parsed JSON data directly, avoiding redundant stdout field
-                    result = {
-                        "success": True,
-                        "returncode": 0,
-                        "stderr": stderr_str,
-                        "cmd": cmd,
-                    }
-                    if parsed_data:
-                        result.update(parsed_data)
+                    result["data"] = json.loads(stdout_str) if stdout_str else None
+                    # to save on tokens, we can remove the raw stdout field
+                    del result["stdout"]
                 except json.JSONDecodeError:
-                    result = {
-                        "success": True,
-                        "returncode": 0,
-                        "stderr": stderr_str,
-                        "cmd": cmd,
-                        "json_error": "Failed to parse JSON output from temporal CLI",
-                        "raw_output": stdout_str
-                    }
-            else:
-                result = {
-                    "success": False,
-                    "returncode": proc.returncode,
-                    "stderr": stderr_str,
-                    "cmd": cmd,
-                }
+                    result["data"] = None
+                    result["json_error"] = "Failed to parse JSON output from temporal CLI"
             else:
                 logger.error(f"Command failed with return code {proc.returncode}: {stderr_str}")
                 
