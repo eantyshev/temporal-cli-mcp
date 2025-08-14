@@ -251,7 +251,7 @@ class TemporalQueryBuilder:
             "supported_fields": cls.get_supported_fields(),
             "supported_operators": cls.get_supported_operators(),
             "examples": [
-                "WorkflowType = 'PatientOnboarding'",
+                "WorkflowType = 'OnboardingFlow'",
                 "WorkflowType STARTS_WITH 'patient'",
                 "ExecutionStatus = 'Failed'",
                 "WorkflowId IN ('id1', 'id2')",

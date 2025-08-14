@@ -130,7 +130,7 @@ async def get_query_examples() -> Dict[str, Any]:
         },
         "advanced_filters": {
             "workflow_id_list": "WorkflowId IN ('wf-1', 'wf-2', 'wf-3')",
-            "multiple_types": "WorkflowType IN ('PatientOnboarding', 'UserRegistration', 'OrderProcessing')",
+            "multiple_types": "WorkflowType IN ('OnboardingFlow', 'UserRegistration', 'OrderProcessing')",
             "time_range": "StartTime BETWEEN '2024-01-01T00:00:00Z' AND '2024-01-31T23:59:59Z'"
         },
         "combined_filters": {

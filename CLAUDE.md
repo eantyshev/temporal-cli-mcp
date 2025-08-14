@@ -80,16 +80,16 @@ When working with workflow listings, always use `count_workflows` before `list_w
 **Recommended workflow:**
 ```python
 # First, get the count to understand scope
-count_result = await count_workflows(query="WorkflowType = 'PatientOnboarding'")
+count_result = await count_workflows(query="WorkflowType = 'OnboardingFlow'")
 print(f"Found {count_result['count']} matching workflows")
 
 # Then list with appropriate limit based on count
 if count_result['count'] > 50:
     # Use smaller limit for large result sets
-    workflows = await list_workflows(query="WorkflowType = 'PatientOnboarding'", limit=10)
+    workflows = await list_workflows(query="WorkflowType = 'OnboardingFlow'", limit=10)
 else:
     # Can safely list all for smaller sets
-    workflows = await list_workflows(query="WorkflowType = 'PatientOnboarding'", limit=count_result['count'])
+    workflows = await list_workflows(query="WorkflowType = 'OnboardingFlow'", limit=count_result['count'])
 ```
 
 ### Query Building

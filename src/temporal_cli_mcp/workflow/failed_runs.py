@@ -15,10 +15,9 @@ from typing import Dict, Any, Optional, List
 from ..core import mcp, run_temporal_command
 
 
+@mcp.tool()
 async def get_failed_runs(
-    workflow_id: str,
-    include_details: bool = False,
-    limit: int = 50
+    workflow_id: str
 ) -> Dict[str, Any]:
     """
     Get count and details of failed workflow runs for retry analysis and failure investigation.
@@ -46,16 +45,33 @@ async def get_failed_runs(
     - "Get failed attempts for workflow Y"
     - "Which workflows have retry storms?"
     
-    Uses the query pattern: WorkflowId = '{workflow_id}' AND ExecutionStatus = 'Failed'
+    **For detailed failure analysis:**
+    If you need to see the actual failed workflow runs (not just the count), use:
+    `list_workflows(query="WorkflowId = 'your-workflow-id' AND ExecutionStatus = 'Failed'", limit=50)`
+    
+    This tool only returns the failure count for fast assessment.
     
     Args:
         workflow_id: The workflow ID to check for failed runs
-        include_details: Whether to return list of failed runs or just count (default: False)
-        limit: Maximum number of failed runs to return if include_details=True (default: 50)
     
     Returns:
-        Dictionary with failed_count and optionally failed_runs list
+        Dictionary with failed_count, workflow_id, and query_used
     """
+    # Build the query to find failed runs for this specific workflow ID
+    query = f"WorkflowId = '{workflow_id}' AND ExecutionStatus = 'Failed'"
+    
+    # Get just the count using workflow count command
+    args = ["workflow", "count", "--query", query]
+    result = await run_temporal_command(args, output="json")
+    
+    failed_count = int(result.get("data", {}).get("count", 0))
+    
+    return {
+        "success": True,
+        "workflow_id": workflow_id,
+        "failed_count": failed_count,
+        "query_used": query
+    }
 
 
 async def get_failed_runs_count_only(workflow_id: str) -> int:
