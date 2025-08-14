@@ -30,3 +30,4 @@ venv.bak/
 .coverage
 htmlcov/
 .DS_Store
+.serena/

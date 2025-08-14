@@ -78,26 +78,10 @@ async def get_workflow_history(
             return result
         
         # Decode payloads if requested
-        if "data" in result and "events" in result["data"]:
-            # Create a new result structure
-            new_result = {
-                "success": result["success"],
-                "returncode": result["returncode"], 
-                "stdout": result["stdout"],
-                "stderr": result["stderr"],
-                "cmd": result["cmd"],
-                "data": {
-                    "events": _decode_event_payloads(result["data"]["events"])
-                }
-            }
-            # Copy any other keys from the original data
-            for key, value in result["data"].items():
-                if key != "events":
-                    new_result["data"][key] = value
-            # Copy any other keys from the original result  
-            for key, value in result.items():
-                if key not in new_result:
-                    new_result[key] = value
+        if "events" in result:
+            # Create a new result structure with decoded events
+            new_result = dict(result)
+            new_result["events"] = _decode_event_payloads(result["events"])
             
             # WORKAROUND: Sanitize the result to avoid FastMCP's dictionary iteration bug
             return _sanitize_for_fastmcp(new_result)

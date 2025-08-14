@@ -9,3 +9,5 @@ from .cancel import cancel_workflow  # noqa: F401
 from .terminate import terminate_workflow  # noqa: F401
 from .history import get_workflow_history  # noqa: F401
 from .build_query import build_workflow_query, get_query_examples, validate_workflow_query  # noqa: F401
+from .count import count_workflows  # noqa: F401
+from .reset import reset_workflow  # noqa: F401
