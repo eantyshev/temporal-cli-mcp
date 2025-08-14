@@ -66,6 +66,38 @@ Example MCP client configuration:
 }
 ```
 
+## Best Practices
+
+### Workflow Query Optimization
+
+When working with workflow listings, always use `count_workflows` before `list_workflows` to:
+
+- **Optimize token usage**: Avoid large responses when dealing with many workflows
+- **Provide context**: Get scope understanding before detailed queries  
+- **Cost efficiency**: Reduce unnecessary API calls and token consumption
+- **Informed decisions**: Choose appropriate limits and filters based on counts
+
+**Recommended workflow:**
+```python
+# First, get the count to understand scope
+count_result = await count_workflows(query="WorkflowType = 'PatientOnboarding'")
+print(f"Found {count_result['count']} matching workflows")
+
+# Then list with appropriate limit based on count
+if count_result['count'] > 50:
+    # Use smaller limit for large result sets
+    workflows = await list_workflows(query="WorkflowType = 'PatientOnboarding'", limit=10)
+else:
+    # Can safely list all for smaller sets
+    workflows = await list_workflows(query="WorkflowType = 'PatientOnboarding'", limit=count_result['count'])
+```
+
+### Query Building
+
+- Use `build_workflow_query` for complex filtering requirements
+- Validate queries with `validate_workflow_query` before execution
+- See `get_query_examples` for common query patterns
+
 ## Prerequisites
 
 - Temporal CLI must be installed and available in PATH

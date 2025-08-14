@@ -57,6 +57,12 @@ class WorkflowHistoryRequest(BaseModel):
     decode_payloads: bool = True
 
 
+class WorkflowStackRequest(BaseModel):
+    """Model for trace_workflow parameters."""
+    workflow_id: str = Field(..., min_length=1)
+    run_id: Optional[str] = None
+
+
 class FieldFilter(BaseModel):
     """Model for a single field filter in workflow queries."""
     field: str = Field(..., min_length=1)

@@ -152,6 +152,17 @@ class TemporalCommandBuilder:
             args.extend(["--run-id", run_id])
         return args
     
+    def build_workflow_stack(
+        self,
+        workflow_id: str,
+        run_id: Optional[str] = None
+    ) -> List[str]:
+        """Build workflow stack command."""
+        args = ["workflow", "stack", "--workflow-id", workflow_id]
+        if run_id:
+            args.extend(["--run-id", run_id])
+        return args
+    
     def build_full_command(self, workflow_args: List[str]) -> List[str]:
         """Build complete command with global flags."""
         return ["temporal"] + self._build_global_flags() + workflow_args

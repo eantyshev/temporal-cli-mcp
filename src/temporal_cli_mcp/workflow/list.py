@@ -8,7 +8,15 @@ async def list_workflows(
     query: Optional[str] = None,
     limit: int = 10,
 ) -> Dict[str, Any]:
-    """List workflows with input validation and improved error handling."""
+    """List workflows with input validation and improved error handling.
+    
+    For large result sets, consider using count_workflows first to understand
+    the scope before listing to optimize token usage and response times.
+    
+    Smart Fallback: If a WorkflowType query returns no results, automatically
+    retries using the workflow name as a WorkflowId prefix pattern.
+    Example: WorkflowType = 'megaflow' → WorkflowId STARTS_WITH 'megaflow'
+    """
     from ..models import WorkflowListRequest
     from ..base import AsyncCommandExecutor, WorkflowCommandHandler
     from ..command_builder import TemporalCommandBuilder
@@ -70,6 +78,18 @@ async def list_workflows(
             else:
                 raise Exception(f"Failed to list workflows: {error_msg}")
         
+        # Try WorkflowId fallback if no results found
+        from ..workflow_fallback import try_workflowid_fallback
+        
+        async def executor_func(fallback_query: str, limit: int) -> Dict[str, Any]:
+            fallback_args = builder.build_workflow_list(fallback_query, limit)
+            fallback_cmd = builder.build_full_command(fallback_args)
+            return await executor.execute(fallback_cmd)
+        
+        result, fallback_used = await try_workflowid_fallback(
+            result, request.query, executor_func, request.limit
+        )
+        
         return result
         
     except Exception as e:
@@ -92,6 +112,10 @@ async def list_workflows_structured(
     
     Only one of 'query' or 'structured_query' should be provided.
     If structured_query is provided, it will be converted to a query string.
+    
+    Smart Fallback: If a WorkflowType query returns no results, automatically
+    retries using the workflow name as a WorkflowId prefix pattern.
+    Example: WorkflowType = 'megaflow' → WorkflowId STARTS_WITH 'megaflow'
     """
     from ..models import EnhancedWorkflowListRequest, StructuredQuery
     from ..base import AsyncCommandExecutor
@@ -185,6 +209,18 @@ async def list_workflows_structured(
                 raise ValidationError(f"Unsupported operator in query. {error_msg}")
             else:
                 raise Exception(f"Failed to list workflows: {error_msg}")
+        
+        # Try WorkflowId fallback if no results found
+        from ..workflow_fallback import try_workflowid_fallback
+        
+        async def executor_func(fallback_query: str, limit: int) -> Dict[str, Any]:
+            fallback_args = builder.build_workflow_list(fallback_query, limit)
+            fallback_cmd = builder.build_full_command(fallback_args)
+            return await executor.execute(fallback_cmd)
+        
+        result, fallback_used = await try_workflowid_fallback(
+            result, final_query, executor_func, request.limit
+        )
         
         # Add query info to result
         result["query_used"] = final_query
