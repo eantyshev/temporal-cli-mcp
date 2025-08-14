@@ -12,3 +12,5 @@ from .build_query import build_workflow_query, get_query_examples, validate_work
 from .count import count_workflows  # noqa: F401
 from .reset import reset_workflow  # noqa: F401
 from .trace import trace_workflow  # noqa: F401
+from .analyze import analyze_workflow_run  # noqa: F401
+from .failed_runs import get_failed_runs  # noqa: F401
