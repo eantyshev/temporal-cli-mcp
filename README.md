@@ -50,13 +50,17 @@ Update your `mcp_config.json` to pass the `--env` argument:
 Exposed tools (JSON output)
 
 - list_workflows(query?: string, limit?: number = 10)
+- list_workflows_structured(query?: string, structured_query?: object, limit?: number = 10)
 - describe_workflow(workflow_id: string)
 - start_workflow(workflow_type: string, task_queue: string, workflow_id?: string, input_data?: string)
 - signal_workflow(workflow_id: string, signal_name: string, input_data?: string)
 - query_workflow(workflow_id: string, query_type: string, input_data?: string)
 - cancel_workflow(workflow_id: string)
 - terminate_workflow(workflow_id: string, reason?: string)
-- get_workflow_history(workflow_id: string, follow?: boolean)
+- get_workflow_history(workflow_id: string, run_id?: string, decode_payloads?: boolean = true)
+- build_workflow_query(structured_query?: object, raw_conditions?: array, logical_operator?: string = "AND")
+- get_query_examples()
+- validate_workflow_query(query: string)(workflow_id: string, follow?: boolean)
 
 Each tool returns a JSON object like:
 
@@ -71,9 +75,18 @@ Each tool returns a JSON object like:
 }
 ```
 
+Recent Updates
+
+- Added structured query support for complex workflow filtering
+- Enhanced history tool with payload decoding and run_id support  
+- Added query builder and validation tools for easier query construction
+- Improved error handling and input validation across all tools
+
 Tips
 
 - To learn flags for a subcommand, consult the CLI directly: `temporal workflow <sub-command> --help`.
+- Use `get_query_examples()` to see sample queries for workflow filtering
+- Use `build_workflow_query()` to construct complex queries programmatically
 - Ensure you have defined the desired Temporal CLI environment in your `$HOME/.config/temporalio/temporal.yaml` (or your chosen env file).
 
 Requirements

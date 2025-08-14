@@ -20,11 +20,68 @@ class TemporalCommandBuilder:
         return flags
     
     def build_workflow_list(self, query: Optional[str] = None, limit: int = 10) -> List[str]:
-        """Build workflow list command."""
+        """Build workflow list command with optional query filtering."""
         args = ["workflow", "list", "--limit", str(limit)]
-        if query:
-            args.extend(["--query", query])
+        if query and query.strip():
+            # Validate query before adding it
+            if self._is_valid_query(query):
+                args.extend(["--query", query])
+            else:
+                raise ValueError(f"Invalid query format: {query}")
         return args
+    
+    def _is_valid_query(self, query: str) -> bool:
+        """Basic validation for query strings."""
+        if not query or not query.strip():
+            return True  # Empty queries are valid
+        
+        # Check for balanced quotes
+        if query.count("'") % 2 != 0:
+            return False
+        
+        # Check for balanced parentheses
+        if query.count("(") != query.count(")"):
+            return False
+        
+        return True
+    
+    def build_workflow_list_with_structured_query(
+        self, 
+        structured_query: Optional[Dict[str, Any]] = None, 
+        limit: int = 10
+    ) -> List[str]:
+        """Build workflow list command from structured query components."""
+        if not structured_query:
+            return self.build_workflow_list(None, limit)
+        
+        # Import here to avoid circular imports
+        from .query_builder import create_query_builder
+        
+        builder = create_query_builder()
+        
+        # Process field filters
+        if "field_filters" in structured_query:
+            for field_filter in structured_query["field_filters"]:
+                condition = f"{field_filter['field']} {field_filter['operator']} '{field_filter['value']}'"
+                builder.custom_condition(condition)
+        
+        # Process time range filters
+        if "time_range_filters" in structured_query:
+            for time_filter in structured_query["time_range_filters"]:
+                start_time = time_filter["start_time"]
+                end_time = time_filter["end_time"]
+                condition = f"{time_filter['field']} BETWEEN '{start_time}' AND '{end_time}'"
+                builder.custom_condition(condition)
+        
+        # Process IN filters
+        if "in_filters" in structured_query:
+            for in_filter in structured_query["in_filters"]:
+                values_str = ", ".join([f"'{value}'" for value in in_filter["values"]])
+                condition = f"{in_filter['field']} IN ({values_str})"
+                builder.custom_condition(condition)
+        
+        query_string = builder.build()
+        return self.build_workflow_list(query_string, limit)
     
     def build_workflow_describe(self, workflow_id: str) -> List[str]:
         """Build workflow describe command."""
@@ -87,12 +144,12 @@ class TemporalCommandBuilder:
     def build_workflow_history(
         self,
         workflow_id: str,
-        follow: bool = False
+        run_id: Optional[str] = None
     ) -> List[str]:
         """Build workflow history command."""
         args = ["workflow", "show", "--workflow-id", workflow_id]
-        if follow:
-            args.append("--follow")
+        if run_id:
+            args.extend(["--run-id", run_id])
         return args
     
     def build_full_command(self, workflow_args: List[str]) -> List[str]:
