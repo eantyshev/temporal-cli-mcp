@@ -19,7 +19,12 @@ This MCP relies on Temporal CLI environments. Set them up with the CLI and selec
 
 Usage
 
-- Via script entrypoint (installed):
+- to add in Claude Code:
+```(bash)
+claude mcp add temporal-cli-mcp -- uvx git+https://github.com/eantyshev/temporal-cli-mcp temporal-cli-mcp --env prod
+```
+
+- Via script entrypoint (installed globally):
 
 ```bash
 temporal-cli-mcp --env prod
