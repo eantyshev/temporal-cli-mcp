@@ -57,6 +57,10 @@ Tools at a glance
 - Control: start_workflow, signal_workflow, query_workflow, cancel_workflow, terminate_workflow, reset_workflow, trace_workflow
 - Health/Analysis: count_workflows, get_failed_runs, build_workflow_query, validate_workflow_query, get_query_examples
 
+Guides
+
+- workflow_failure_analysis_guide: callable, structured decision flow for failure triage (which tools to call, what to look for)
+
 Query builder highlights
 
 - Build valid queries quickly: build_workflow_query (structured), list_workflows_structured (execute), validate_workflow_query (check), get_query_examples (learn)
