@@ -1,44 +1,43 @@
 Temporal CLI MCP Server
 =======================
 
-An MCP server that wraps the Temporal CLI for automation of workflow inspection and one-off operations. It focuses exclusively on the `workflow` command group and outputs JSON for easy parsing.
+Lean, focused MCP server for investigating problems and monitoring the health of a Temporal Cloud environment (namespace). It wraps Temporal CLI workflow commands and returns clean JSON for SWE/SRE assistance—plus a comprehensive query builder for easy exploration of workflow runs.
 
-Key points
+What it’s for
 
-- Only the "workflow" section is supported (e.g., list, describe, start, signal, query, cancel, terminate, show/history).
-- No explicit address/namespace/TLS/API key flags in tools. All connectivity and auth come from the Temporal CLI Environment selected by `--env`.
-- Every command is executed with `-o json --time-format iso`, and the MCP returns parsed JSON in a `data` field alongside raw `stdout`.
-- For option details, use the Temporal CLI help: `temporal workflow <sub-command> --help`.
+- Rapid workflow investigation: list, describe, history, stack traces, failure patterns
+- Environment health checks: counts, filtered lists, query building/validation (comprehensive query builder)
+- Encapsulated practices: safe list filters, prefix fallbacks, payload decoding, retry analysis
 
-Temporal CLI environments
+What it’s not
 
-This MCP relies on Temporal CLI environments. Set them up with the CLI and select one when starting the MCP:
+- Not a universal Temporal tool. It intentionally focuses on the `workflow` command group
+- No dynamic workflow generation, SDK scaffolding, or broad orchestration features
+- For those, use the Temporal SDK/CLI or other specialized tools
 
-- Use the CLI directly: `temporal --env <env-name> workflow <args>`
-- Start MCP with an environment: the MCP forwards `--env <env-name>` to all `temporal` calls.
+How it connects
 
-Usage
+- Uses your Temporal CLI environments for connectivity and auth
+- You select the environment once; the server forwards `--env <name>` to every `temporal` call
+- All commands run with `-o json --time-format iso`; responses include parsed data and raw stdout
 
-- to add in Claude Code:
-```(bash)
+Install in Claude Code
+
+- Recommended (uvx from GitHub):
+
+```bash
 claude mcp add temporal-cli-mcp -- uvx git+https://github.com/eantyshev/temporal-cli-mcp temporal-cli-mcp --env prod
 ```
 
-- Via script entrypoint (installed globally):
+- Dev (local path; run from repo root):
 
 ```bash
-temporal-cli-mcp --env prod
-```
-
-- Via module execution (dev):
-
-```bash
-uv run python -m temporal_cli_mcp --env staging
+claude mcp add temporal-cli-mcp -- uv run python -m temporal_cli_mcp --env staging
 ```
 
 MCP client config example
 
-Update your `mcp_config.json` to pass the `--env` argument:
+Add `--env` to your `mcp_config.json`:
 
 ```json
 {
@@ -52,49 +51,28 @@ Update your `mcp_config.json` to pass the `--env` argument:
 }
 ```
 
-Exposed tools (JSON output)
+Tools at a glance
 
-- list_workflows(query?: string, limit?: number = 10)
-- list_workflows_structured(query?: string, structured_query?: object, limit?: number = 10)
-- describe_workflow(workflow_id: string)
-- start_workflow(workflow_type: string, task_queue: string, workflow_id?: string, input_data?: string)
-- signal_workflow(workflow_id: string, signal_name: string, input_data?: string)
-- query_workflow(workflow_id: string, query_type: string, input_data?: string)
-- cancel_workflow(workflow_id: string)
-- terminate_workflow(workflow_id: string, reason?: string)
-- get_workflow_history(workflow_id: string, run_id?: string, decode_payloads?: boolean = true)
-- build_workflow_query(structured_query?: object, raw_conditions?: array, logical_operator?: string = "AND")
-- get_query_examples()
-- validate_workflow_query(query: string)(workflow_id: string, follow?: boolean)
+- Inspect/Query: list_workflows, list_workflows_structured, describe_workflow, get_workflow_history (with payload decoding)
+- Control: start_workflow, signal_workflow, query_workflow, cancel_workflow, terminate_workflow, reset_workflow, trace_workflow
+- Health/Analysis: count_workflows, get_failed_runs, build_workflow_query, validate_workflow_query, get_query_examples
 
-Each tool returns a JSON object like:
+Query builder highlights
 
-```json
-{
-	"success": true,
-	"returncode": 0,
-	"stdout": "...raw CLI output...",
-	"stderr": "",
-	"cmd": ["temporal", "--env", "prod", "-o", "json", "--time-format", "iso", "workflow", "describe", "--workflow-id", "my-id"],
-	"data": { "parsed": "json from CLI if available" }
-}
-```
+- Build valid queries quickly: build_workflow_query (structured), list_workflows_structured (execute), validate_workflow_query (check), get_query_examples (learn)
+- Safer patterns by default: supported fields/operators, prefix matching guidance, and validation tips
 
-Recent Updates
+Why SWE/SREs like it
 
-- Added structured query support for complex workflow filtering
-- Enhanced history tool with payload decoding and run_id support  
-- Added query builder and validation tools for easier query construction
-- Improved error handling and input validation across all tools
+- Fast triage and deep dives without context switching
+- Common analysis patterns built-in (e.g., fallback from WorkflowType to WorkflowId prefix, retry/failed-run counts)
+- Safe, parseable JSON output for automations and dashboards
 
-Tips
+Prerequisites
 
-- To learn flags for a subcommand, consult the CLI directly: `temporal workflow <sub-command> --help`.
-- Use `get_query_examples()` to see sample queries for workflow filtering
-- Use `build_workflow_query()` to construct complex queries programmatically
-- Ensure you have defined the desired Temporal CLI environment in your `$HOME/.config/temporalio/temporal.yaml` (or your chosen env file).
+- Temporal CLI installed and in PATH
+- Temporal CLI environments configured (e.g., ~/.config/temporalio/temporal.yaml)
 
-Requirements
+Help
 
-- `temporal` CLI installed and available in PATH.
-- Python 3.11+.
+- For flags and options, use: `temporal workflow <sub-command> --help`
