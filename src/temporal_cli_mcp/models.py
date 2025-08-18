@@ -71,14 +71,18 @@ class FieldFilter(BaseModel):
 
     @validator('operator')
     def validate_operator(cls, v):
-        valid_operators = ["=", "!=", ">", ">=", "<", "<=", "STARTS_WITH"]
+        valid_operators = ["=", "!=", ">", ">=", "<", "<=", "STARTS_WITH", "IN", "BETWEEN", "IS NULL", "IS NOT NULL"]
         if v not in valid_operators:
             raise ValueError(f"Operator must be one of: {valid_operators}")
         return v
 
     @validator('field')
     def validate_field(cls, v):
-        valid_fields = ["WorkflowId", "WorkflowType", "ExecutionStatus", "StartTime", "CloseTime", "ExecutionTime"]
+        valid_fields = [
+            "WorkflowId", "WorkflowType", "RunId", "ExecutionStatus", 
+            "StartTime", "CloseTime", "ExecutionTime", "BuildIds", 
+            "TaskQueue", "WorkflowTaskStartedEventId"
+        ]
         if v not in valid_fields:
             raise ValueError(f"Field must be one of: {valid_fields}")
         return v
@@ -105,7 +109,10 @@ class InFilter(BaseModel):
 
     @validator('field')
     def validate_field(cls, v):
-        valid_fields = ["WorkflowId", "WorkflowType", "ExecutionStatus"]
+        valid_fields = [
+            "WorkflowId", "WorkflowType", "RunId", "ExecutionStatus", 
+            "BuildIds", "TaskQueue", "WorkflowTaskStartedEventId"
+        ]
         if v not in valid_fields:
             raise ValueError(f"IN filter field must be one of: {valid_fields}")
         return v

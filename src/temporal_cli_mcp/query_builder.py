@@ -8,13 +8,26 @@ import re
 
 class ComparisonOperator(Enum):
     """Supported comparison operators for Temporal list filters."""
+    # Basic comparison operators
     EQUALS = "="
     NOT_EQUALS = "!="
     GREATER_THAN = ">"
     GREATER_THAN_OR_EQUAL = ">="
     LESS_THAN = "<"
     LESS_THAN_OR_EQUAL = "<="
+    
+    # String pattern matching (only for Keyword fields)
     STARTS_WITH = "STARTS_WITH"
+    
+    # Collection operators
+    IN = "IN"
+    
+    # Range operator
+    BETWEEN = "BETWEEN"
+    
+    # Null checks
+    IS_NULL = "IS NULL"
+    IS_NOT_NULL = "IS NOT NULL"
 
 
 class LogicalOperator(Enum):
@@ -25,12 +38,34 @@ class LogicalOperator(Enum):
 
 class SupportedField(Enum):
     """Supported fields for Temporal workflow queries."""
+    # Core workflow identification
     WORKFLOW_ID = "WorkflowId"
     WORKFLOW_TYPE = "WorkflowType"
+    RUN_ID = "RunId"
+    
+    # Execution status and lifecycle
     EXECUTION_STATUS = "ExecutionStatus"
+    
+    # Time-related fields
     START_TIME = "StartTime"
     CLOSE_TIME = "CloseTime"
     EXECUTION_TIME = "ExecutionTime"
+    
+    # Worker versioning
+    BUILD_IDS = "BuildIds"
+    TASK_QUEUE = "TaskQueue"
+    
+    # Advanced workflow attributes
+    WORKFLOW_TASK_STARTED_EVENT_ID = "WorkflowTaskStartedEventId"
+    
+    # Common custom search attributes (case-sensitive examples)
+    # Note: Custom attributes depend on user configuration
+    CUSTOM_STRING_FIELD = "CustomStringField"
+    CUSTOM_INT_FIELD = "CustomIntField"
+    CUSTOM_DOUBLE_FIELD = "CustomDoubleField"
+    CUSTOM_BOOL_FIELD = "CustomBoolField"
+    CUSTOM_DATETIME_FIELD = "CustomDatetimeField"
+    CUSTOM_KEYWORD_FIELD = "CustomKeywordField"
 
 
 class ExecutionStatus(Enum):
@@ -95,6 +130,42 @@ class TemporalQueryBuilder:
         time_value = time.isoformat() if isinstance(time, datetime) else time
         return self._add_condition(SupportedField.EXECUTION_TIME, time_value, operator)
 
+    def run_id(self, value: str, operator: ComparisonOperator = ComparisonOperator.EQUALS) -> "TemporalQueryBuilder":
+        """Add a RunId filter."""
+        return self._add_condition(SupportedField.RUN_ID, value, operator)
+
+    def build_ids(self, value: str, operator: ComparisonOperator = ComparisonOperator.EQUALS) -> "TemporalQueryBuilder":
+        """Add a BuildIds filter for worker versioning."""
+        return self._add_condition(SupportedField.BUILD_IDS, value, operator)
+
+    def task_queue(self, value: str, operator: ComparisonOperator = ComparisonOperator.EQUALS) -> "TemporalQueryBuilder":
+        """Add a TaskQueue filter."""
+        return self._add_condition(SupportedField.TASK_QUEUE, value, operator)
+
+    def workflow_task_started_event_id(self, value: Union[int, str], operator: ComparisonOperator = ComparisonOperator.EQUALS) -> "TemporalQueryBuilder":
+        """Add a WorkflowTaskStartedEventId filter."""
+        return self._add_condition(SupportedField.WORKFLOW_TASK_STARTED_EVENT_ID, str(value), operator)
+
+    def custom_field(self, field_name: str, value: Union[str, int, float, bool], operator: ComparisonOperator = ComparisonOperator.EQUALS) -> "TemporalQueryBuilder":
+        """Add a custom search attribute filter.
+        
+        Note: Custom search attributes must be configured in your Temporal cluster.
+        Field names with special characters should be wrapped in backticks.
+        """
+        # Handle boolean values
+        if isinstance(value, bool):
+            value_str = "true" if value else "false"
+        else:
+            value_str = str(value)
+        
+        # Wrap field name in backticks if it contains special characters
+        if re.search(r'[^a-zA-Z0-9_]', field_name):
+            field_name = f"`{field_name}`"
+        
+        condition = f"{field_name} {operator.value} '{self._escape_value(value_str)}'"
+        self._conditions.append(condition)
+        return self
+
     def workflow_id_in(self, workflow_ids: List[str]) -> "TemporalQueryBuilder":
         """Add a WorkflowId IN filter."""
         values = ", ".join([f"'{self._escape_value(wid)}'" for wid in workflow_ids])
@@ -105,6 +176,37 @@ class TemporalQueryBuilder:
     def workflow_type_starts_with(self, prefix: str) -> "TemporalQueryBuilder":
         """Add a WorkflowType STARTS_WITH filter."""
         return self._add_condition(SupportedField.WORKFLOW_TYPE, prefix, ComparisonOperator.STARTS_WITH)
+
+    def execution_status_in(self, statuses: List[Union[ExecutionStatus, str]]) -> "TemporalQueryBuilder":
+        """Add an ExecutionStatus IN filter."""
+        status_values = []
+        for status in statuses:
+            status_values.append(status.value if isinstance(status, ExecutionStatus) else status)
+        values = ", ".join([f"'{self._escape_value(status)}'" for status in status_values])
+        condition = f"{SupportedField.EXECUTION_STATUS.value} IN ({values})"
+        self._conditions.append(condition)
+        return self
+
+    def build_ids_in(self, build_ids: List[str]) -> "TemporalQueryBuilder":
+        """Add a BuildIds IN filter for multiple build IDs."""
+        values = ", ".join([f"'{self._escape_value(bid)}'" for bid in build_ids])
+        condition = f"{SupportedField.BUILD_IDS.value} IN ({values})"
+        self._conditions.append(condition)
+        return self
+
+    def is_null(self, field: Union[SupportedField, str]) -> "TemporalQueryBuilder":
+        """Add an IS NULL condition for a field."""
+        field_name = field.value if isinstance(field, SupportedField) else field
+        condition = f"{field_name} IS NULL"
+        self._conditions.append(condition)
+        return self
+
+    def is_not_null(self, field: Union[SupportedField, str]) -> "TemporalQueryBuilder":
+        """Add an IS NOT NULL condition for a field."""
+        field_name = field.value if isinstance(field, SupportedField) else field
+        condition = f"{field_name} IS NOT NULL"
+        self._conditions.append(condition)
+        return self
 
     def time_range(self, field: SupportedField, start: Union[datetime, str], end: Union[datetime, str]) -> "TemporalQueryBuilder":
         """Add a time range filter using BETWEEN."""
@@ -189,12 +291,23 @@ class TemporalQueryBuilder:
         if open_parens != close_parens:
             errors.append("Unbalanced parentheses in query")
         
-        # Check for supported fields
-        supported_field_names = [field.value for field in SupportedField]
-        has_supported_field = any(field_name in query for field_name in supported_field_names)
+        # Check for supported fields (excluding custom field examples)
+        core_field_names = [
+            SupportedField.WORKFLOW_ID.value,
+            SupportedField.WORKFLOW_TYPE.value,
+            SupportedField.RUN_ID.value,
+            SupportedField.EXECUTION_STATUS.value,
+            SupportedField.START_TIME.value,
+            SupportedField.CLOSE_TIME.value,
+            SupportedField.EXECUTION_TIME.value,
+            SupportedField.BUILD_IDS.value,
+            SupportedField.TASK_QUEUE.value,
+            SupportedField.WORKFLOW_TASK_STARTED_EVENT_ID.value
+        ]
+        has_supported_field = any(field_name in query for field_name in core_field_names)
         
         if not has_supported_field:
-            errors.append(f"Query must contain at least one supported field: {', '.join(supported_field_names)}")
+            errors.append(f"Query must contain at least one supported field: {', '.join(core_field_names)}")
         
         # Check for unsupported operators
         unsupported_found = []
@@ -254,15 +367,48 @@ class TemporalQueryBuilder:
                 "WorkflowType = 'OnboardingFlow'",
                 "WorkflowType STARTS_WITH 'patient'",
                 "ExecutionStatus = 'Failed'",
+                "ExecutionStatus IN ('Running', 'Failed')",
                 "WorkflowId IN ('id1', 'id2')",
-                "StartTime > '2025-01-01T00:00:00Z'"
+                "StartTime > '2025-01-01T00:00:00Z'",
+                "BuildIds = 'build-123'",
+                "TaskQueue = 'my-task-queue'",
+                "StartTime BETWEEN '2025-01-01T00:00:00Z' AND '2025-01-31T23:59:59Z'",
+                "CloseTime IS NOT NULL",
+                "`CustomField` = 'custom-value'"
             ]
         }
 
     @classmethod
     def get_supported_fields(cls) -> List[str]:
-        """Get list of all supported field names."""
-        return [field.value for field in SupportedField]
+        """Get list of core supported field names (excluding custom field examples)."""
+        return [
+            SupportedField.WORKFLOW_ID.value,
+            SupportedField.WORKFLOW_TYPE.value,
+            SupportedField.RUN_ID.value,
+            SupportedField.EXECUTION_STATUS.value,
+            SupportedField.START_TIME.value,
+            SupportedField.CLOSE_TIME.value,
+            SupportedField.EXECUTION_TIME.value,
+            SupportedField.BUILD_IDS.value,
+            SupportedField.TASK_QUEUE.value,
+            SupportedField.WORKFLOW_TASK_STARTED_EVENT_ID.value
+        ]
+
+    @classmethod
+    def get_all_field_types(cls) -> Dict[str, str]:
+        """Get mapping of field names to their data types."""
+        return {
+            SupportedField.WORKFLOW_ID.value: "Keyword",
+            SupportedField.WORKFLOW_TYPE.value: "Keyword", 
+            SupportedField.RUN_ID.value: "Keyword",
+            SupportedField.EXECUTION_STATUS.value: "Keyword",
+            SupportedField.START_TIME.value: "Datetime",
+            SupportedField.CLOSE_TIME.value: "Datetime",
+            SupportedField.EXECUTION_TIME.value: "Datetime",
+            SupportedField.BUILD_IDS.value: "Keyword",
+            SupportedField.TASK_QUEUE.value: "Keyword",
+            SupportedField.WORKFLOW_TASK_STARTED_EVENT_ID.value: "Int",
+        }
 
     @classmethod
     def get_supported_operators(cls) -> List[str]:
@@ -270,11 +416,115 @@ class TemporalQueryBuilder:
         return [op.value for op in ComparisonOperator]
 
     @classmethod
+    def get_operator_usage(cls) -> Dict[str, str]:
+        """Get detailed operator usage information."""
+        return {
+            "=": "Exact equality match",
+            "!=": "Not equal to",
+            ">": "Greater than (numbers/dates)",
+            ">=": "Greater than or equal (numbers/dates)",
+            "<": "Less than (numbers/dates)",
+            "<=": "Less than or equal (numbers/dates)",
+            "STARTS_WITH": "String prefix match (Keyword fields only)",
+            "IN": "Match any value in list: field IN ('val1', 'val2')",
+            "BETWEEN": "Range match: field BETWEEN 'start' AND 'end'",
+            "IS NULL": "Field has no value",
+            "IS NOT NULL": "Field has a value",
+            "AND": "Logical AND to combine conditions",
+            "OR": "Logical OR to combine conditions"
+        }
+
+    @classmethod
     def get_execution_statuses(cls) -> List[str]:
         """Get list of all valid execution status values."""
         return [status.value for status in ExecutionStatus]
+
+    @classmethod
+    def get_data_types_info(cls) -> Dict[str, Dict[str, Any]]:
+        """Get comprehensive data type information for search attributes."""
+        return {
+            "Keyword": {
+                "description": "String values, case-sensitive",
+                "operators": ["=", "!=", "STARTS_WITH", "IN", "IS NULL", "IS NOT NULL"],
+                "examples": ["'MyWorkflow'", "'build-123'"],
+                "notes": "Use STARTS_WITH for prefix matching. Supports IN for multiple values."
+            },
+            "Text": {
+                "description": "Full-text searchable strings",
+                "operators": ["=", "!=", "IN", "IS NULL", "IS NOT NULL"],
+                "examples": ["'Full text content'"],
+                "notes": "STARTS_WITH not supported on Text fields."
+            },
+            "Int": {
+                "description": "Integer numbers",
+                "operators": ["=", "!=", ">", ">=", "<", "<=", "IN", "BETWEEN", "IS NULL", "IS NOT NULL"],
+                "examples": ["123", "0", "-456"],
+                "notes": "No quotes needed for numeric values."
+            },
+            "Double": {
+                "description": "Floating-point numbers",
+                "operators": ["=", "!=", ">", ">=", "<", "<=", "IN", "BETWEEN", "IS NULL", "IS NOT NULL"],
+                "examples": ["123.45", "0.0", "-456.78"],
+                "notes": "No quotes needed for numeric values."
+            },
+            "Bool": {
+                "description": "Boolean values",
+                "operators": ["=", "!=", "IS NULL", "IS NOT NULL"],
+                "examples": ["true", "false"],
+                "notes": "Use lowercase true/false without quotes."
+            },
+            "Datetime": {
+                "description": "Date and time values",
+                "operators": ["=", "!=", ">", ">=", "<", "<=", "BETWEEN", "IS NULL", "IS NOT NULL"],
+                "examples": ["'2025-01-01T00:00:00Z'", "'2025-12-31T23:59:59.000Z'"],
+                "notes": "Use ISO 8601 format with quotes. UTC timezone recommended."
+            },
+            "KeywordList": {
+                "description": "Array of keyword strings",
+                "operators": ["=", "!=", "IN", "IS NULL", "IS NOT NULL"],
+                "examples": ["'value1'", "IN ('val1', 'val2')"],
+                "notes": "Use = to match exact array, IN to match any element."
+            }
+        }
 
 
 def create_query_builder() -> TemporalQueryBuilder:
     """Factory function to create a new query builder instance."""
     return TemporalQueryBuilder()
+
+
+def get_query_construction_guide() -> Dict[str, Any]:
+    """Get comprehensive guide for constructing Temporal queries."""
+    return {
+        "syntax_rules": {
+            "field_names": "Case-sensitive. Use backticks for special characters: `my-field`",
+            "string_values": "Must be quoted with single quotes: 'value'",
+            "numeric_values": "No quotes needed: 123, 45.67",
+            "boolean_values": "Lowercase without quotes: true, false",
+            "datetime_values": "ISO 8601 format with quotes: '2025-01-01T00:00:00Z'",
+            "arrays": "Use parentheses: ('val1', 'val2', 'val3')",
+            "logical_operators": "AND, OR (uppercase)",
+            "grouping": "Use parentheses for complex logic: (A AND B) OR (C AND D)"
+        },
+        "common_patterns": {
+            "prefix_matching": "WorkflowType STARTS_WITH 'prefix'",
+            "multiple_values": "field IN ('val1', 'val2')",
+            "time_ranges": "StartTime BETWEEN '2025-01-01T00:00:00Z' AND '2025-01-31T23:59:59Z'",
+            "null_checks": "field IS NULL, field IS NOT NULL",
+            "combined_conditions": "WorkflowType = 'MyType' AND ExecutionStatus = 'Running'"
+        },
+        "performance_tips": [
+            "Use specific field filters to reduce result sets",
+            "Prefer '=' over range queries when possible",
+            "Use IN operator instead of multiple OR conditions",
+            "Index custom search attributes for better performance",
+            "Limit result sets with appropriate time ranges"
+        ],
+        "limitations": [
+            "LIKE operator not supported (use STARTS_WITH)",
+            "Wildcards (%, *) not supported",
+            "STARTS_WITH only works on Keyword fields",
+            "Case-sensitive field names and string values",
+            "Maximum 2KB per custom search attribute value"
+        ]
+    }
