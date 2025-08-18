@@ -89,4 +89,4 @@ Why SWE/SREs may like it
 Prerequisites
 
 - Temporal CLI installed and in PATH (tested on version 1.4.1)
-- Temporal CLI environments configured (e.g., ~/.config/temporalio/temporal.yaml)
+- Temporal CLI environments configured (e.g., ~/.config/temporalio/temporal.yaml) - see [CLI env documentation](https://docs.temporal.io/cli/env)
