@@ -80,7 +80,7 @@ Query builder highlights
 - Build valid queries quickly: build_workflow_query (structured), list_workflows_structured (execute), validate_workflow_query (check), get_query_examples (learn)
 - Safer patterns by default: supported fields/operators, prefix matching guidance, and validation tips
 
-Why SWE/SREs like it
+Why SWE/SREs may like it
 
 - Fast triage and deep dives without context switching
 - Common analysis patterns built-in (e.g., fallback from WorkflowType to WorkflowId prefix, retry/failed-run counts)
@@ -88,9 +88,5 @@ Why SWE/SREs like it
 
 Prerequisites
 
-- Temporal CLI installed and in PATH
+- Temporal CLI installed and in PATH (tested on version 1.4.1)
 - Temporal CLI environments configured (e.g., ~/.config/temporalio/temporal.yaml)
-
-Help
-
-- For flags and options, use: `temporal workflow <sub-command> --help`
