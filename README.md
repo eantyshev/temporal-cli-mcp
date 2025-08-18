@@ -21,6 +21,20 @@ How it connects
 - You select the environment once; the server forwards `--env <name>` to every `temporal` call
 - All commands run with `-o json --time-format iso`; responses include parsed data and raw stdout
 
+Common Investigation Questions
+===============================
+
+- How many workflows with BuildId X are currently running?
+- Which specific workflow executions failed in the last hour?
+- What events led to this workflow getting stuck?
+- Are there workflows matching pattern Y that need cancellation?
+- What's the current status of workflow ABC-123?
+- Which workflows are waiting on signals or queries?
+- How many retries has this workflow attempted?
+- What was the exact input that caused this failure?
+- Are there stuck workflows from a specific task queue?
+- Which workflows can be safely reset to recover?
+
 Install in Claude Code
 
 - Recommended (uvx from GitHub):
