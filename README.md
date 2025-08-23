@@ -1,5 +1,10 @@
-Temporal CLI MCP Server
-=======================
+# Temporal CLI MCP Server
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![Temporal](https://img.shields.io/badge/temporal-%23000000.svg?style=flat&logo=temporal&logoColor=white)](https://temporal.io/)
+[![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://github.com/modelcontextprotocol/modelcontextprotocol)
+[![FastMCP](https://img.shields.io/badge/FastMCP-powered-blue.svg)](https://github.com/jlowin/fastmcp)
 
 Lean, focused MCP server for investigating problems and monitoring the health of a Temporal Cloud environment (namespace). It wraps Temporal CLI workflow commands and returns clean JSON for SWE/SRE assistance—plus a comprehensive query builder for easy exploration of workflow runs.
 
