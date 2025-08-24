@@ -24,12 +24,66 @@ temporal-cli-mcp --env prod
 ```
 
 ### Testing
-```bash
-# Run test script
-python test_mcp.py
 
-# Test with environment flag
-python test_env_flag.py
+The project includes a comprehensive test infrastructure following kubectl-mcp patterns. Tests can be run in two modes:
+
+**Mock Mode (Recommended for Development):**
+```bash
+# Run all tests safely without Temporal CLI
+task test
+
+# Run specific test categories
+task test:core          # Core MCP functionality tests
+task test:mock          # Explicit mock mode
+task quick              # Quick single test
+task quick:all          # Quick core test suite
+
+# Generate test reports
+task test:coverage      # Run with coverage report
+task test:report        # Generate HTML report
+```
+
+**Integration Mode (Requires Temporal CLI Access):**
+```bash
+# Test against staging environment
+task test:staging
+
+# Test against production environment (use carefully)
+task test:prod
+
+# Validate Temporal CLI setup
+task validate:temporal
+```
+
+**Test Development:**
+```bash
+# Install test dependencies
+task test:install-deps
+
+# Run tests in watch mode (reruns on changes)
+task test:watch
+
+# Run a specific test
+task test:single -- tests/test_mcp_core.py::TestTemporalMCPCore::test_list_tools
+
+# Demo test infrastructure
+task demo:mcp           # Demo MCP client simulator
+task demo:utils         # Demo test utilities
+```
+
+**Environment Variables:**
+```bash
+# Enable mock mode (no Temporal CLI calls)
+export TEMPORAL_MCP_TEST_MOCK_MODE=1
+
+# Set test environment
+export TEMPORAL_TEST_ENV=staging
+
+# Set test timeout
+export TEMPORAL_TEST_TIMEOUT=30
+
+# Enable debug logging
+export TEMPORAL_TEST_LOG_LEVEL=DEBUG
 ```
 
 ### Dependencies
@@ -98,8 +152,54 @@ else:
 - Validate queries with `validate_workflow_query` before execution
 - See `get_query_examples` for common query patterns
 
+## Testing Architecture
+
+The project uses a comprehensive testing strategy adapted from kubectl-mcp-server patterns:
+
+### Test Components
+
+- **MCP Client Simulator** (`tests/mcp_client_simulator.py`): Full MCP protocol simulation for end-to-end testing
+- **Test Utilities** (`tests/test_utils.py`): Environment setup, validation functions, and mock data generators
+- **Test Runner** (`tests/run_tests.py`): Test execution, dependency checking, and reporting
+- **Core Tests** (`tests/test_mcp_core.py`): MCP protocol compliance and workflow operation tests
+
+### Test Modes
+
+1. **Mock Mode**: Safe offline testing with simulated responses (default)
+2. **Integration Mode**: Real Temporal CLI integration testing (requires environment access)
+
+### Running Tests
+
+Always run tests in mock mode during development to avoid affecting real environments:
+
+```bash
+# Recommended: Run all tests in mock mode
+task test
+
+# Quick development workflow
+task quick              # Single test
+task quick:all          # Core test suite
+task test:watch         # Watch mode for TDD
+```
+
+For integration testing with real Temporal CLI (use carefully):
+
+```bash
+task validate:temporal  # Check Temporal CLI setup first
+task test:staging       # Test against staging
+```
+
+### CI/CD Integration
+
+```bash
+# Simulate CI pipeline
+task ci                 # Basic CI simulation
+task ci:full            # Full CI with coverage and reports
+```
+
 ## Prerequisites
 
 - Temporal CLI must be installed and available in PATH
 - Temporal CLI environments must be configured in `~/.config/temporalio/temporal.yaml`
 - Python 3.11+
+- Task (go-task.github.io) for running development commands

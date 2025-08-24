@@ -15,5 +15,14 @@ where = ["src"]
 [tool.setuptools.package-dir]
 "" = "src"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-html>=4.1.1",
+    "pytest-watch>=4.2.0",
+]
+
 [project.scripts]
 temporal-cli-mcp = "temporal_cli_mcp.__main__:main"

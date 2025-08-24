@@ -1,0 +1,241 @@
+version: '3'
+
+# Temporal CLI MCP - Task Automation
+# This file defines common development tasks for the temporal-cli-mcp project
+
+vars:
+  PYTHON: "uv run python"
+  PYTEST: "uv run pytest"
+  TEST_ENV: "staging"
+
+tasks:
+  # Testing tasks
+  test:
+    desc: "Run all tests in mock mode (safe for development)"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTEST}} tests/ -v"
+
+  test:mock:
+    desc: "Run tests in mock mode (no actual Temporal CLI calls)"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTEST}} tests/ -v"
+
+  test:staging:
+    desc: "Run tests against staging environment (requires Temporal CLI access)"
+    env:
+      TEMPORAL_TEST_ENV: "staging"
+    cmds:
+      - "{{.PYTEST}} tests/ -v"
+
+  test:prod:
+    desc: "Run tests against production environment (requires Temporal CLI access)"
+    env:
+      TEMPORAL_TEST_ENV: "prod"
+    cmds:
+      - "{{.PYTEST}} tests/ -v"
+
+  test:core:
+    desc: "Run only core MCP tests"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTEST}} tests/test_mcp_core.py -v"
+
+  test:coverage:
+    desc: "Run tests with coverage report"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - uv add --dev pytest-cov
+      - "{{.PYTEST}} tests/ --cov=src/temporal_cli_mcp --cov-report=html --cov-report=term"
+
+  test:report:
+    desc: "Run tests and generate HTML report"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - uv add --dev pytest-html
+      - "{{.PYTEST}} tests/ --html=test_reports/report.html --self-contained-html"
+
+  test:watch:
+    desc: "Run tests in watch mode (reruns on file changes)"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - uv add --dev pytest-watch
+      - ptw tests/ -- -v
+
+  test:single:
+    desc: "Run a single test (usage: task test:single -- tests/test_mcp_core.py::TestTemporalMCPCore::test_list_tools)"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTEST}} {{.CLI_ARGS}} -v"
+
+  test:install-deps:
+    desc: "Install test dependencies"
+    cmds:
+      - uv add --dev pytest pytest-asyncio pytest-cov pytest-html pytest-watch
+
+  test:clean:
+    desc: "Clean test artifacts and cache"
+    cmds:
+      - rm -rf .pytest_cache/
+      - rm -rf test_reports/
+      - rm -rf .coverage
+      - rm -rf htmlcov/
+
+  # Development server tasks
+  serve:
+    desc: "Start MCP server in development mode (staging environment)"
+    cmds:
+      - "{{.PYTHON}} -m temporal_cli_mcp --env staging"
+
+  serve:prod:
+    desc: "Start MCP server with production environment"
+    cmds:
+      - "{{.PYTHON}} -m temporal_cli_mcp --env prod"
+
+  # Development utilities
+  lint:
+    desc: "Run code linting (if configured)"
+    cmds:
+      - echo "Linting not yet configured. Add ruff or other linter to pyproject.toml"
+
+  format:
+    desc: "Format code (if configured)"
+    cmds:
+      - echo "Code formatting not yet configured. Add black or ruff format to pyproject.toml"
+
+  check:
+    desc: "Run all quality checks"
+    deps: [test:mock]
+
+  # Query builder testing
+  test:query-builder:
+    desc: "Test query builder functionality"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTHON}} -c \"
+        import sys; sys.path.insert(0, 'src');
+        from temporal_cli_mcp.query_builder import create_query_builder;
+        builder = create_query_builder();
+        builder.workflow_type('TestWorkflow').execution_status('Running');
+        print('Query:', builder.build());
+        print('✓ Query builder working')
+        \""
+
+  # Documentation tasks
+  docs:build:
+    desc: "Build documentation (if configured)"
+    cmds:
+      - echo "Documentation building not yet configured"
+
+  # Installation and setup
+  setup:
+    desc: "Set up development environment"
+    cmds:
+      - uv sync
+      - task: test:install-deps
+
+  setup:fresh:
+    desc: "Fresh setup (clean install)"
+    cmds:
+      - rm -rf .venv/
+      - uv sync
+      - task: test:install-deps
+
+  # Environment validation
+  validate:env:
+    desc: "Validate environment setup"
+    cmds:
+      - echo "Checking Python environment..."
+      - "{{.PYTHON}} --version"
+      - echo "Checking uv..."
+      - uv --version
+      - echo "Checking project dependencies..."
+      - uv tree
+      - echo "✓ Environment validation complete"
+
+  validate:temporal:
+    desc: "Validate Temporal CLI access"
+    cmds:
+      - echo "Checking Temporal CLI..."
+      - temporal --version
+      - echo "Checking Temporal environments..."
+      - temporal env list
+      - echo "Testing staging access..."
+      - temporal --env staging workflow list --limit 1
+      - echo "✓ Temporal CLI validation complete"
+
+  # Performance testing
+  test:performance:
+    desc: "Run performance tests (placeholder)"
+    cmds:
+      - echo "Performance tests not yet implemented"
+      - echo "Will test concurrent requests, large result sets, memory usage"
+
+  # CI/CD simulation
+  ci:
+    desc: "Simulate CI/CD pipeline"
+    cmds:
+      - echo "Simulating CI/CD pipeline..."
+      - task: validate:env
+      - task: test:mock
+      - echo "✓ CI simulation complete"
+
+  ci:full:
+    desc: "Full CI simulation with coverage"
+    cmds:
+      - echo "Full CI/CD pipeline simulation..."
+      - task: validate:env
+      - task: test:coverage
+      - task: test:report
+      - echo "✓ Full CI simulation complete"
+
+  # Helper tasks
+  help:
+    desc: "Show available tasks"
+    cmds:
+      - task --list
+
+  clean:
+    desc: "Clean all artifacts"
+    cmds:
+      - task: test:clean
+      - rm -rf .venv/
+      - rm -rf src/**/__pycache__/
+      - rm -rf tests/__pycache__/
+
+  # Examples and demos
+  demo:mcp:
+    desc: "Demo MCP client simulator"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTHON}} tests/mcp_client_simulator.py"
+
+  demo:utils:
+    desc: "Demo test utilities"
+    cmds:
+      - "{{.PYTHON}} tests/test_utils.py"
+
+  # Quick test runners for development
+  quick:
+    desc: "Quick test run (core tests only)"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTEST}} tests/test_mcp_core.py::TestTemporalMCPCore::test_list_tools -v"
+
+  quick:all:
+    desc: "Quick test run (all core tests)"
+    env:
+      TEMPORAL_MCP_TEST_MOCK_MODE: "1"
+    cmds:
+      - "{{.PYTEST}} tests/test_mcp_core.py -v"
