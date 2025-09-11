@@ -31,3 +31,6 @@ venv.bak/
 htmlcov/
 .DS_Store
 .serena/
+
+# Test reports
+test_reports/
