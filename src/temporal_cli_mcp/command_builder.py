@@ -6,10 +6,11 @@ from typing import List, Optional, Any, Dict
 class TemporalCommandBuilder:
     """Builder for constructing Temporal CLI commands with proper argument handling."""
     
-    def __init__(self, env: Optional[str] = None):
+    def __init__(self, env: Optional[str] = None, timeout_seconds: Optional[float] = None):
         self.env = env
         self.output_format = "json"
         self.time_format = "iso"
+        self.timeout_seconds = timeout_seconds
     
     def _build_global_flags(self) -> List[str]:
         """Build global flags that apply to all commands."""
@@ -17,6 +18,13 @@ class TemporalCommandBuilder:
         if self.env:
             flags.extend(["--env", self.env])
         flags.extend(["-o", self.output_format, "--time-format", self.time_format])
+        
+        # Add command timeout if specified
+        if self.timeout_seconds is not None:
+            # Convert to Temporal CLI duration format (e.g., "60s")
+            timeout_str = f"{int(self.timeout_seconds)}s"
+            flags.extend(["--command-timeout", timeout_str])
+        
         return flags
     
     def build_workflow_list(self, query: Optional[str] = None, limit: int = 10) -> List[str]:

@@ -236,6 +236,26 @@ get_workflow_history(
 - `preset` parameter overrides `event_types` and `exclude_event_types` (but not `fields`, `limit`, `reverse`)
 - Without filtering, full history is returned for backwards compatibility
 
+**Handling Timeouts for Large Histories:**
+
+If you get "context deadline exceeded" errors for very large workflow histories:
+
+```python
+# Increase timeout for large histories (default is 60s)
+get_workflow_history(
+    workflow_id="megaflow-xyz",
+    timeout_seconds=120,  # 2 minutes
+    preset="critical_path",
+    fields="standard"
+)
+```
+
+**Timeout Guidelines:**
+- **Default (60s)**: Suitable for most workflows (<500 events)
+- **120s**: For large workflows (500-2000 events)
+- **180s+**: For very large workflows (2000+ events)
+- Combine with filtering presets to reduce both fetch time and response size
+
 ### Query Building
 
 - Use `build_workflow_query` for complex filtering requirements

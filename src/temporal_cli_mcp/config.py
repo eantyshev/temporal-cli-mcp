@@ -12,7 +12,7 @@ class TemporalConfig:
     output_format: str = "json"
     time_format: str = "iso"
     log_level: str = "INFO"
-    timeout: float = 30.0
+    timeout: float = 60.0  # Default 60s - increase for large workflow histories
     
     def setup_logging(self) -> None:
         """Setup logging configuration."""

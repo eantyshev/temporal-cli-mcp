@@ -227,6 +227,8 @@ async def get_workflow_history(
     fields: str = "full",
     # Smart presets
     preset: Optional[str] = None,
+    # Timeout configuration
+    timeout_seconds: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Get workflow execution history with automatic base64 payload decoding and filtering.
     
@@ -262,6 +264,11 @@ async def get_workflow_history(
             - "resets": All WORKFLOW_TASK_FAILED events
             - "summary": Key state transitions only (Started, Completed, Failed, etc.)
             - "critical_path": Exclude verbose events (timers, markers, etc.)
+        
+        # Timeout configuration
+        timeout_seconds: Command timeout in seconds. If not specified, uses config default (30s).
+            Increase for very large workflow histories (e.g., 120s for histories with 1000+ events).
+            Set to 0 for no timeout (use with caution).
     
     Returns:
         Dict with workflow history. If filtering is applied, includes "filter_info" with:
@@ -284,6 +291,13 @@ async def get_workflow_history(
         
         # Critical path only
         get_workflow_history(workflow_id="megaflow-xyz", preset="critical_path", fields="minimal")
+        
+        # Large workflow history with increased timeout
+        get_workflow_history(
+            workflow_id="megaflow-xyz",
+            timeout_seconds=120,  # 2 minutes for very large histories
+            preset="summary"
+        )
     """
     import json
     import base64
@@ -314,7 +328,9 @@ async def get_workflow_history(
         
         # Create executor and builder
         executor = AsyncCommandExecutor()
-        builder = TemporalCommandBuilder(env=config.env)
+        # Use provided timeout or fallback to config default
+        timeout = timeout_seconds if timeout_seconds is not None else config.timeout
+        builder = TemporalCommandBuilder(env=config.env, timeout_seconds=timeout)
         
         # Build and execute command
         workflow_args = builder.build_workflow_history(request.workflow_id, request.run_id)
