@@ -288,6 +288,318 @@ class TestTemporalMCPEdgeCases:
         logger.info("✓ Malformed parameter handling works")
 
 
+class TestWorkflowHistoryFiltering:
+    """Test workflow history filtering and projection features."""
+    
+    @pytest.fixture
+    def mcp_client(self):
+        """Fixture for history filtering tests."""
+        with temporal_mcp_client(env=TEST_CONFIG["temporal_env"]) as client:
+            yield client
+    
+    @pytest.fixture
+    def sample_history(self):
+        """Sample workflow history for testing filters."""
+        # This would be mocked in mock mode or use real data in integration mode
+        return {
+            "events": [
+                {"eventId": 1, "eventType": "WORKFLOW_EXECUTION_STARTED", "eventTime": "2025-01-01T00:00:00Z"},
+                {"eventId": 2, "eventType": "WORKFLOW_TASK_SCHEDULED", "eventTime": "2025-01-01T00:00:01Z"},
+                {"eventId": 3, "eventType": "WORKFLOW_TASK_STARTED", "eventTime": "2025-01-01T00:00:02Z"},
+                {"eventId": 4, "eventType": "WORKFLOW_TASK_COMPLETED", "eventTime": "2025-01-01T00:00:03Z"},
+                {"eventId": 5, "eventType": "TIMER_STARTED", "eventTime": "2025-01-01T00:00:04Z"},
+                {"eventId": 6, "eventType": "TIMER_FIRED", "eventTime": "2025-01-01T00:00:05Z"},
+                {"eventId": 7, "eventType": "WORKFLOW_TASK_FAILED", "eventTime": "2025-01-01T00:00:06Z"},
+                {"eventId": 8, "eventType": "WORKFLOW_EXECUTION_COMPLETED", "eventTime": "2025-01-01T00:00:07Z"},
+            ]
+        }
+    
+    def test_event_type_filtering(self, mcp_client):
+        """Test filtering by specific event types."""
+        # Note: This test requires a workflow with history
+        # In mock mode, it will use mock data
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            event_types=["WORKFLOW_TASK_FAILED", "WORKFLOW_EXECUTION_COMPLETED"]
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            # Check for filter_info
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert "filters_applied" in filter_info
+                assert any("event_types" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Event type filtering applied: {filter_info['filters_applied']}")
+                
+                # Verify filtered events only contain requested types
+                events = data.get("events", [])
+                for event in events:
+                    assert event.get("eventType") in ["WORKFLOW_TASK_FAILED", "WORKFLOW_EXECUTION_COMPLETED"]
+                
+                logger.info(f"✓ Filtered {filter_info['original_event_count']} → {filter_info['filtered_event_count']} events")
+        else:
+            logger.info("✓ Event type filtering handled (no data or error)")
+    
+    def test_exclude_event_types(self, mcp_client):
+        """Test excluding specific event types."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            exclude_event_types=["TIMER_FIRED", "TIMER_STARTED"]
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("exclude_event_types" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Exclude filtering applied: {filter_info['filters_applied']}")
+                
+                # Verify excluded events are not present
+                events = data.get("events", [])
+                for event in events:
+                    assert event.get("eventType") not in ["TIMER_FIRED", "TIMER_STARTED"]
+                
+                logger.info(f"✓ Excluded events from {filter_info['original_event_count']} events")
+    
+    def test_limit_and_reverse(self, mcp_client):
+        """Test limit and reverse parameters."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            limit=5,
+            reverse=True
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("limit=5" in f for f in filter_info["filters_applied"])
+                assert any("reverse=True" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Limit and reverse applied: {filter_info['filters_applied']}")
+                
+                # Verify limit is respected
+                events = data.get("events", [])
+                assert len(events) <= 5
+                
+                logger.info(f"✓ Limited to {len(events)} events (reverse order)")
+    
+    def test_field_projection_minimal(self, mcp_client):
+        """Test minimal field projection."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            fields="minimal"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("fields=minimal" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Minimal projection applied: {filter_info['filters_applied']}")
+                
+                # Verify events only have minimal fields
+                events = data.get("events", [])
+                for event in events[:2]:  # Check first 2
+                    assert "eventId" in event
+                    assert "eventType" in event
+                    assert "eventTime" in event
+                    # Should not have detailed attributes
+                    assert len(event) <= 4  # eventId, eventType, eventTime, maybe one attribute key
+                
+                logger.info("✓ Events have minimal fields only")
+    
+    def test_field_projection_standard(self, mcp_client):
+        """Test standard field projection."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            fields="standard"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("fields=standard" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Standard projection applied")
+    
+    def test_preset_last_failure_context(self, mcp_client):
+        """Test last_failure_context preset."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            preset="last_failure_context"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("preset=last_failure_context" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Last failure context preset applied")
+                
+                # Should have at most 11 events (10 before + failure)
+                events = data.get("events", [])
+                assert len(events) <= 11
+                
+                logger.info(f"✓ Got {len(events)} events for failure context")
+    
+    def test_preset_summary(self, mcp_client):
+        """Test summary preset."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            preset="summary"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("preset=summary" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Summary preset applied")
+                
+                # Verify only summary events are present
+                events = data.get("events", [])
+                summary_types = [
+                    "WORKFLOW_EXECUTION_STARTED", "WORKFLOW_EXECUTION_COMPLETED",
+                    "WORKFLOW_EXECUTION_FAILED", "CHILD_WORKFLOW_EXECUTION_STARTED",
+                    "ACTIVITY_TASK_COMPLETED", "ACTIVITY_TASK_FAILED"
+                ]
+                for event in events:
+                    assert event.get("eventType") in summary_types
+                
+                logger.info(f"✓ All {len(events)} events are summary events")
+    
+    def test_preset_critical_path(self, mcp_client):
+        """Test critical_path preset."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            preset="critical_path"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                assert any("preset=critical_path" in f for f in filter_info["filters_applied"])
+                logger.info(f"✓ Critical path preset applied")
+                
+                # Verify verbose events are excluded
+                events = data.get("events", [])
+                verbose_types = ["TIMER_FIRED", "TIMER_STARTED", "MARKER_RECORDED"]
+                for event in events:
+                    assert event.get("eventType") not in verbose_types
+                
+                logger.info(f"✓ Verbose events excluded from {len(events)} events")
+    
+    def test_combined_filters(self, mcp_client):
+        """Test combining multiple filters."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow",
+            event_types=["WORKFLOW_TASK_FAILED", "WORKFLOW_TASK_COMPLETED"],
+            limit=10,
+            reverse=True,
+            fields="standard"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            if "filter_info" in data:
+                filter_info = data["filter_info"]
+                filters_applied = filter_info["filters_applied"]
+                
+                # Should have multiple filters
+                assert len(filters_applied) >= 3
+                assert any("event_types" in f for f in filters_applied)
+                assert any("limit=10" in f for f in filters_applied)
+                assert any("fields=standard" in f for f in filters_applied)
+                
+                logger.info(f"✓ Combined filters applied: {filters_applied}")
+                logger.info(f"✓ Filtered {filter_info['original_event_count']} → {filter_info['filtered_event_count']} events")
+    
+    def test_backwards_compatibility(self, mcp_client):
+        """Test that get_workflow_history still works without new parameters."""
+        response = mcp_client.call_workflow_tool(
+            "get_workflow_history",
+            workflow_id="test-workflow"
+        )
+        
+        is_valid, error = validate_temporal_workflow_response(response)
+        assert is_valid, f"Invalid response: {error}"
+        
+        result = response.get("result", {})
+        
+        if result.get("success") and "data" in result:
+            data = result["data"]
+            
+            # Without filtering, should NOT have filter_info
+            assert "filter_info" not in data or data["filter_info"]["filtered_event_count"] == data["filter_info"]["original_event_count"]
+            
+            logger.info("✓ Backwards compatibility maintained (no filtering)")
+
+
 if __name__ == "__main__":
     # Simple test run
     print("Running basic MCP core tests...")

@@ -146,6 +146,96 @@ else:
     workflows = await list_workflows(query="WorkflowType = 'OnboardingFlow'", limit=count_result['count'])
 ```
 
+### Workflow History Filtering
+
+**Problem**: Workflow histories can be very large (45KB+ for 214 events), consuming significant tokens and making debugging difficult.
+
+**Solution**: Use `get_workflow_history` filtering parameters to reduce response size by 20x or more.
+
+**Key Filtering Parameters:**
+
+1. **Event Type Filtering** - Focus on relevant events only:
+   ```python
+   # Get only failures for debugging
+   get_workflow_history(
+       workflow_id="megaflow-xyz",
+       event_types=["WORKFLOW_TASK_FAILED", "ACTIVITY_TASK_FAILED", "CHILD_WORKFLOW_EXECUTION_FAILED"]
+   )
+   
+   # Exclude verbose events
+   get_workflow_history(
+       workflow_id="megaflow-xyz",
+       exclude_event_types=["TIMER_FIRED", "TIMER_STARTED", "MARKER_RECORDED"]
+   )
+   ```
+
+2. **Smart Presets** - Common debugging scenarios:
+   ```python
+   # Last failure + 10 events before it (perfect for debugging non-deterministic errors)
+   get_workflow_history(workflow_id="megaflow-xyz", preset="last_failure_context")
+   
+   # Only key state transitions
+   get_workflow_history(workflow_id="megaflow-xyz", preset="summary")
+   
+   # All WORKFLOW_TASK_FAILED events (find resets)
+   get_workflow_history(workflow_id="megaflow-xyz", preset="resets")
+   
+   # Exclude verbose events (timers, markers)
+   get_workflow_history(workflow_id="megaflow-xyz", preset="critical_path")
+   ```
+
+3. **Pagination & Ordering** - Get recent events first:
+   ```python
+   # Last 30 events, most recent first (99% of debugging looks at recent activity)
+   get_workflow_history(
+       workflow_id="megaflow-xyz",
+       reverse=True,
+       limit=30
+   )
+   ```
+
+4. **Field Projection** - Reduce payload size:
+   ```python
+   # Minimal: Only eventId, eventType, eventTime
+   get_workflow_history(workflow_id="megaflow-xyz", fields="minimal")
+   
+   # Standard: Add failure messages and key identifiers (recommended for debugging)
+   get_workflow_history(workflow_id="megaflow-xyz", fields="standard")
+   
+   # Full: Everything including payloads (default, largest response)
+   get_workflow_history(workflow_id="megaflow-xyz", fields="full")
+   ```
+
+**Most Common Use Case** (reduces 45KB to ~2KB):
+```python
+# Perfect for debugging: recent events, failures, no payloads
+get_workflow_history(
+    workflow_id="megaflow-xyz",
+    reverse=True,
+    limit=30,
+    event_types=["WORKFLOW_TASK_FAILED", "WORKFLOW_TASK_COMPLETED", "ACTIVITY_TASK_FAILED"],
+    fields="standard"
+)
+```
+
+**Combining Filters** - All filters work together:
+```python
+# Get last 20 critical events without timers
+get_workflow_history(
+    workflow_id="megaflow-xyz",
+    exclude_event_types=["TIMER_FIRED", "TIMER_STARTED"],
+    reverse=True,
+    limit=20,
+    fields="standard"
+)
+```
+
+**Important Notes:**
+- All filtering is **post-processing** after fetching from Temporal CLI
+- Filtering doesn't improve fetch performance but dramatically reduces token usage
+- `preset` parameter overrides `event_types` and `exclude_event_types` (but not `fields`, `limit`, `reverse`)
+- Without filtering, full history is returned for backwards compatibility
+
 ### Query Building
 
 - Use `build_workflow_query` for complex filtering requirements
