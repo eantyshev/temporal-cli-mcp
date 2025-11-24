@@ -264,10 +264,10 @@ async def get_workflow_history(
             raise Exception(f"Failed to get workflow history: {result['stderr']}")
         
         # Track original event count for filter_info
-        original_event_count = len(result.get("events", []))
-        
+        original_event_count = len(result.get("data", {}).get("events", []))
+
         # Step 1: Decode payloads if requested
-        events = result.get("events", [])
+        events = result.get("data", {}).get("events", [])
         if request.decode_payloads and events:
             events = _decode_event_payloads(events)
         
@@ -317,11 +317,14 @@ async def get_workflow_history(
         
         # Build result with filter info
         new_result = dict(result)
-        new_result["events"] = events
-        
+        if "data" in new_result:
+            new_result["data"]["events"] = events
+
         # Add filter_info if filtering was applied
         if filters_applied:
-            new_result["filter_info"] = {
+            if "data" not in new_result:
+                new_result["data"] = {}
+            new_result["data"]["filter_info"] = {
                 "original_event_count": original_event_count,
                 "filtered_event_count": len(events),
                 "filters_applied": filters_applied,
