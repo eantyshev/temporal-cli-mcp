@@ -21,45 +21,6 @@ def _truncate_string_if_needed(text: str) -> str:
 # Filtering Helper Functions
 # ============================================================================
 
-def _filter_by_event_types(events: list, event_types: list[str]) -> list:
-    """Filter events by exact event type match."""
-    if not event_types:
-        return events
-    return [e for e in events if isinstance(e, dict) and e.get("eventType") in event_types]
-
-
-def _exclude_event_types(events: list, exclude_types: list[str]) -> list:
-    """Exclude specific event types."""
-    if not exclude_types:
-        return events
-    return [e for e in events if isinstance(e, dict) and e.get("eventType") not in exclude_types]
-
-
-def _filter_by_event_id_range(events: list, start_id: Optional[int], end_id: Optional[int]) -> list:
-    """Filter events by event ID range (inclusive)."""
-    if start_id is None and end_id is None:
-        return events
-    
-    filtered = []
-    for event in events:
-        if not isinstance(event, dict):
-            continue
-        event_id = event.get("eventId")
-        if not isinstance(event_id, (int, str)):
-            continue
-        
-        try:
-            event_id_int = int(event_id)
-            if start_id is not None and event_id_int < start_id:
-                continue
-            if end_id is not None and event_id_int > end_id:
-                continue
-            filtered.append(event)
-        except (ValueError, TypeError):
-            continue
-    
-    return filtered
-
 
 def _apply_field_projection(events: list, level: str) -> list:
     """Apply field projection to reduce event size.
@@ -134,19 +95,32 @@ def _apply_field_projection(events: list, level: str) -> list:
     return projected_events
 
 
-def _apply_preset(events: list, preset: str) -> tuple[list, list[str]]:
+def _apply_preset(events: list, preset: str) -> tuple[list, list[str], dict]:
     """Apply a smart preset filter to events.
     
     Args:
         events: List of event dictionaries
-        preset: Preset name ("last_failure_context", "resets", "summary", "critical_path")
+        preset: Preset name ("recent", "last_failure_context", "resets")
     
     Returns:
-        Tuple of (filtered_events, list of filter descriptions applied)
+        Tuple of (filtered_events, list of filter descriptions applied, additional_settings)
+        where additional_settings contains preset-specific parameter overrides
     """
     filters_applied = [f"preset={preset}"]
+    additional_settings = {}
     
-    if preset == "last_failure_context":
+    if preset == "recent":
+        # Most common use case: recent events with minimal fields
+        # Auto-applies: reverse=True, limit=30, fields="standard"
+        additional_settings = {
+            "reverse": True,
+            "limit": 30,
+            "fields": "standard"
+        }
+        # Return all events - reverse/limit/fields will be applied later
+        return events, filters_applied, additional_settings
+    
+    elif preset == "last_failure_context":
         # Find last failure event
         failure_types = [
             "WORKFLOW_TASK_FAILED",
@@ -163,52 +137,19 @@ def _apply_preset(events: list, preset: str) -> tuple[list, list[str]]:
         if last_failure_idx is not None:
             # Return last failure + 10 events before it
             start_idx = max(0, last_failure_idx - 10)
-            return events[start_idx:last_failure_idx + 1], filters_applied
+            return events[start_idx:last_failure_idx + 1], filters_applied, additional_settings
         else:
             # No failures found, return empty
-            return [], filters_applied
+            return [], filters_applied, additional_settings
     
     elif preset == "resets":
         # All WORKFLOW_TASK_FAILED events (typically include resets)
         filtered = [e for e in events if isinstance(e, dict) and e.get("eventType") == "WORKFLOW_TASK_FAILED"]
-        return filtered, filters_applied
-    
-    elif preset == "summary":
-        # Key state transitions only
-        summary_types = [
-            "WORKFLOW_EXECUTION_STARTED",
-            "WORKFLOW_EXECUTION_COMPLETED",
-            "WORKFLOW_EXECUTION_FAILED",
-            "WORKFLOW_EXECUTION_CANCELED",
-            "WORKFLOW_EXECUTION_TIMED_OUT",
-            "WORKFLOW_EXECUTION_CONTINUED_AS_NEW",
-            "WORKFLOW_EXECUTION_TERMINATED",
-            "CHILD_WORKFLOW_EXECUTION_STARTED",
-            "CHILD_WORKFLOW_EXECUTION_COMPLETED",
-            "CHILD_WORKFLOW_EXECUTION_FAILED",
-            "ACTIVITY_TASK_STARTED",
-            "ACTIVITY_TASK_COMPLETED",
-            "ACTIVITY_TASK_FAILED",
-        ]
-        filtered = [e for e in events if isinstance(e, dict) and e.get("eventType") in summary_types]
-        return filtered, filters_applied
-    
-    elif preset == "critical_path":
-        # Exclude verbose events
-        verbose_types = [
-            "TIMER_FIRED",
-            "TIMER_STARTED",
-            "TIMER_CANCELED",
-            "MARKER_RECORDED",
-            "UPSERT_WORKFLOW_SEARCH_ATTRIBUTES",
-            "WORKFLOW_PROPERTIES_MODIFIED",
-        ]
-        filtered = [e for e in events if isinstance(e, dict) and e.get("eventType") not in verbose_types]
-        return filtered, filters_applied
+        return filtered, filters_applied, additional_settings
     
     else:
         # Unknown preset, return all events
-        return events, [f"preset={preset} (unknown, no filtering applied)"]
+        return events, [f"preset={preset} (unknown, no filtering applied)"], additional_settings
 
 
 @mcp.tool()
@@ -217,12 +158,8 @@ async def get_workflow_history(
     run_id: Optional[str] = None,
     decode_payloads: bool = True,
     # Filtering parameters
-    event_types: Optional[list[str]] = None,
-    exclude_event_types: Optional[list[str]] = None,
     limit: Optional[int] = None,
     reverse: bool = False,
-    start_event_id: Optional[int] = None,
-    end_event_id: Optional[int] = None,
     # Field projection
     fields: str = "full",
     # Smart presets
@@ -232,72 +169,58 @@ async def get_workflow_history(
 ) -> Dict[str, Any]:
     """Get workflow execution history with automatic base64 payload decoding and filtering.
     
-    This tool retrieves the complete event history for a workflow execution,
-    with optional post-processing filters to reduce response size for large histories.
+    **RECOMMENDED USAGE:**
     
-    NOTE: All filtering is done via post-processing AFTER fetching the full history from
-    Temporal CLI. This means filtering doesn't improve performance for fetching, but 
-    significantly reduces token usage in responses.
+    1. **Recent activity debugging** (90-95% size reduction):
+       ```
+       get_workflow_history(workflow_id="my-workflow", preset="recent")
+       ```
+       Returns last 30 events with minimal fields - perfect for "what's happening now?"
+    
+    2. **Failure analysis** (95% size reduction):
+       ```
+       get_workflow_history(workflow_id="my-workflow", preset="last_failure_context")
+       ```
+       Auto-finds last failure + 10 events before it - perfect for "why did this fail?"
+    
+    **Advanced Usage:**
+    - Override preset defaults: `preset="recent"` + custom `limit` or `fields`
+    - Manual control: skip `preset`, use `reverse=True, limit=N, fields="standard"`
     
     Args:
         workflow_id: The workflow ID to retrieve history for
         run_id: Optional specific run ID to target
         decode_payloads: Whether to automatically decode base64 payloads (default: True)
         
-        # Filtering parameters
-        event_types: Filter to specific event types (exact matches, e.g., ["WORKFLOW_TASK_FAILED"])
-        exclude_event_types: Exclude specific event types (e.g., ["TIMER_FIRED"])
-        limit: Maximum number of events to return after filtering
-        reverse: Return events in reverse chronological order (most recent first)
-        start_event_id: Start from this event ID (inclusive)
-        end_event_id: End at this event ID (inclusive)
+        # Filtering
+        limit: Maximum number of events to return (default: 30 for "recent" preset)
+        reverse: Return events in reverse chronological order (default: True for "recent" preset)
         
-        # Field projection (reduces response size)
-        fields: Field projection level:
-            - "minimal": eventId, eventType, eventTime only
-            - "standard": minimal + failure messages, state transitions, key identifiers
-            - "full": all fields including payloads (default)
+        # Field projection
+        fields: "minimal" (ids/types/times) | "standard" (+ failures/identifiers) | "full" (everything)
+                Default: "standard" for "recent" preset, "full" otherwise
         
-        # Smart presets (override other filter params)
-        preset: Smart preset filter:
-            - "last_failure_context": Last failure event + 10 events before it
+        # Smart presets (recommended)
+        preset: 
+            - "recent": Last 30 events, minimal fields (most common debugging)
+            - "last_failure_context": Last failure + 10 events before it
             - "resets": All WORKFLOW_TASK_FAILED events
-            - "summary": Key state transitions only (Started, Completed, Failed, etc.)
-            - "critical_path": Exclude verbose events (timers, markers, etc.)
         
-        # Timeout configuration
-        timeout_seconds: Command timeout in seconds. If not specified, uses config default (30s).
-            Increase for very large workflow histories (e.g., 120s for histories with 1000+ events).
-            Set to 0 for no timeout (use with caution).
+        # Performance
+        timeout_seconds: Command timeout (default: 60s). Use 120s+ for large histories (1000+ events)
     
     Returns:
-        Dict with workflow history. If filtering is applied, includes "filter_info" with:
-        - original_event_count: Number of events before filtering
-        - filtered_event_count: Number of events after filtering
-        - filters_applied: List of filters that were applied
+        Dict with workflow history and filter_info showing size reduction
     
-    Example:
-        # Most common debugging use case (reduces 45KB to ~2KB)
-        get_workflow_history(
-            workflow_id="megaflow-xyz",
-            reverse=True,
-            limit=30,
-            event_types=["WORKFLOW_TASK_FAILED", "WORKFLOW_TASK_COMPLETED"],
-            fields="standard"
-        )
+    Examples:
+        # General debugging (reduces 150KB to ~5KB)
+        get_workflow_history(workflow_id="megaflow-xyz", preset="recent")
         
-        # Quick failure analysis
+        # Failure debugging
         get_workflow_history(workflow_id="megaflow-xyz", preset="last_failure_context")
         
-        # Critical path only
-        get_workflow_history(workflow_id="megaflow-xyz", preset="critical_path", fields="minimal")
-        
-        # Large workflow history with increased timeout
-        get_workflow_history(
-            workflow_id="megaflow-xyz",
-            timeout_seconds=120,  # 2 minutes for very large histories
-            preset="summary"
-        )
+        # Custom limit
+        get_workflow_history(workflow_id="megaflow-xyz", preset="recent", limit=50)
     """
     import json
     import base64
@@ -351,50 +274,46 @@ async def get_workflow_history(
         # Step 2: Apply filtering if any filter params are provided
         filters_applied = []
         
+        # Track effective values (may be overridden by preset)
+        effective_reverse = reverse
+        effective_limit = limit
+        effective_fields = fields
+        
         # Check if any filtering is needed
         needs_filtering = (
             preset is not None
-            or event_types is not None
-            or exclude_event_types is not None
             or limit is not None
             or reverse
-            or start_event_id is not None
-            or end_event_id is not None
             or fields != "full"
         )
         
         if needs_filtering and events:
-            # Apply preset first (overrides other filters except fields)
+            # Apply preset first (may override reverse/limit/fields)
             if preset:
-                events, preset_filters = _apply_preset(events, preset)
+                events, preset_filters, additional_settings = _apply_preset(events, preset)
                 filters_applied.extend(preset_filters)
-            else:
-                # Apply individual filters in order
-                if event_types:
-                    events = _filter_by_event_types(events, event_types)
-                    filters_applied.append(f"event_types={event_types}")
                 
-                if exclude_event_types:
-                    events = _exclude_event_types(events, exclude_event_types)
-                    filters_applied.append(f"exclude_event_types={exclude_event_types}")
-                
-                if start_event_id is not None or end_event_id is not None:
-                    events = _filter_by_event_id_range(events, start_event_id, end_event_id)
-                    filters_applied.append(f"event_id_range=[{start_event_id or 'start'}:{end_event_id or 'end'}]")
+                # Apply additional settings from preset (but allow user overrides)
+                if "reverse" in additional_settings and not reverse:
+                    effective_reverse = additional_settings["reverse"]
+                if "limit" in additional_settings and limit is None:
+                    effective_limit = additional_settings["limit"]
+                if "fields" in additional_settings and fields == "full":
+                    effective_fields = additional_settings["fields"]
             
-            # Apply reverse and limit (applies to both preset and manual filters)
-            if reverse:
+            # Apply reverse and limit
+            if effective_reverse:
                 events = list(reversed(events))
                 filters_applied.append("reverse=True")
             
-            if limit is not None:
-                events = events[:limit]
-                filters_applied.append(f"limit={limit}")
+            if effective_limit is not None:
+                events = events[:effective_limit]
+                filters_applied.append(f"limit={effective_limit}")
             
             # Apply field projection last
-            if fields != "full":
-                events = _apply_field_projection(events, fields)
-                filters_applied.append(f"fields={fields}")
+            if effective_fields != "full":
+                events = _apply_field_projection(events, effective_fields)
+                filters_applied.append(f"fields={effective_fields}")
         
         # Build result with filter info
         new_result = dict(result)

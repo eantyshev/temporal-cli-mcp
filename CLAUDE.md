@@ -148,113 +148,63 @@ else:
 
 ### Workflow History Filtering
 
-**Problem**: Workflow histories can be very large (45KB+ for 214 events), consuming significant tokens and making debugging difficult.
+**Problem**: Workflow histories can be very large (150KB for 209 events), consuming significant tokens and making debugging difficult.
 
-**Solution**: Use `get_workflow_history` filtering parameters to reduce response size by 20x or more.
+**Solution**: Use `get_workflow_history` presets to reduce response size by 90-95%.
 
-**Key Filtering Parameters:**
+**Two Main Patterns:**
 
-1. **Event Type Filtering** - Focus on relevant events only:
-   ```python
-   # Get only failures for debugging
-   get_workflow_history(
-       workflow_id="megaflow-xyz",
-       event_types=["WORKFLOW_TASK_FAILED", "ACTIVITY_TASK_FAILED", "CHILD_WORKFLOW_EXECUTION_FAILED"]
-   )
-   
-   # Exclude verbose events
-   get_workflow_history(
-       workflow_id="megaflow-xyz",
-       exclude_event_types=["TIMER_FIRED", "TIMER_STARTED", "MARKER_RECORDED"]
-   )
-   ```
+#### 1. Recent Activity Debugging (Use `preset="recent"`)
 
-2. **Smart Presets** - Common debugging scenarios:
-   ```python
-   # Last failure + 10 events before it (perfect for debugging non-deterministic errors)
-   get_workflow_history(workflow_id="megaflow-xyz", preset="last_failure_context")
-   
-   # Only key state transitions
-   get_workflow_history(workflow_id="megaflow-xyz", preset="summary")
-   
-   # All WORKFLOW_TASK_FAILED events (find resets)
-   get_workflow_history(workflow_id="megaflow-xyz", preset="resets")
-   
-   # Exclude verbose events (timers, markers)
-   get_workflow_history(workflow_id="megaflow-xyz", preset="critical_path")
-   ```
+**When to use**: General debugging, "what's happening with this workflow?"
 
-3. **Pagination & Ordering** - Get recent events first:
-   ```python
-   # Last 30 events, most recent first (99% of debugging looks at recent activity)
-   get_workflow_history(
-       workflow_id="megaflow-xyz",
-       reverse=True,
-       limit=30
-   )
-   ```
+**What it does**: Returns last 30 events with minimal fields (auto-applies `reverse=True, limit=30, fields="standard"`)
 
-4. **Field Projection** - Reduce payload size:
-   ```python
-   # Minimal: Only eventId, eventType, eventTime
-   get_workflow_history(workflow_id="megaflow-xyz", fields="minimal")
-   
-   # Standard: Add failure messages and key identifiers (recommended for debugging)
-   get_workflow_history(workflow_id="megaflow-xyz", fields="standard")
-   
-   # Full: Everything including payloads (default, largest response)
-   get_workflow_history(workflow_id="megaflow-xyz", fields="full")
-   ```
-
-**Most Common Use Case** (reduces 45KB to ~2KB):
-```python
-# Perfect for debugging: recent events, failures, no payloads
-get_workflow_history(
-    workflow_id="megaflow-xyz",
-    reverse=True,
-    limit=30,
-    event_types=["WORKFLOW_TASK_FAILED", "WORKFLOW_TASK_COMPLETED", "ACTIVITY_TASK_FAILED"],
-    fields="standard"
-)
-```
-
-**Combining Filters** - All filters work together:
-```python
-# Get last 20 critical events without timers
-get_workflow_history(
-    workflow_id="megaflow-xyz",
-    exclude_event_types=["TIMER_FIRED", "TIMER_STARTED"],
-    reverse=True,
-    limit=20,
-    fields="standard"
-)
-```
-
-**Important Notes:**
-- All filtering is **post-processing** after fetching from Temporal CLI
-- Filtering doesn't improve fetch performance but dramatically reduces token usage
-- `preset` parameter overrides `event_types` and `exclude_event_types` (but not `fields`, `limit`, `reverse`)
-- Without filtering, full history is returned for backwards compatibility
-
-**Handling Timeouts for Large Histories:**
-
-If you get "context deadline exceeded" errors for very large workflow histories:
+**Size reduction**: 150KB → ~5-10KB (90-95% reduction)
 
 ```python
-# Increase timeout for large histories (default is 60s)
-get_workflow_history(
-    workflow_id="megaflow-xyz",
-    timeout_seconds=120,  # 2 minutes
-    preset="critical_path",
-    fields="standard"
-)
+# Most common debugging scenario
+get_workflow_history(workflow_id="megaflow-xyz", preset="recent")
+
+# Override defaults if needed
+get_workflow_history(workflow_id="megaflow-xyz", preset="recent", limit=50)
 ```
 
-**Timeout Guidelines:**
-- **Default (60s)**: Suitable for most workflows (<500 events)
-- **120s**: For large workflows (500-2000 events)
-- **180s+**: For very large workflows (2000+ events)
-- Combine with filtering presets to reduce both fetch time and response size
+#### 2. Failure Analysis (Use `preset="last_failure_context"`)
+
+**When to use**: "Why did this workflow fail?", non-deterministic error debugging
+
+**What it does**: Auto-finds last failure + 10 events before it
+
+**Size reduction**: 150KB → ~2KB (95% reduction)
+
+```python
+# Automatic failure debugging
+get_workflow_history(workflow_id="megaflow-xyz", preset="last_failure_context")
+```
+
+**Decision Tree:**
+- Looking at recent activity? → `preset="recent"`
+- Investigating a failure? → `preset="last_failure_context"`  
+- Finding resets? → `preset="resets"`
+- Need full control? → Manual: `reverse=True, limit=N, fields="standard"`
+
+**Available Presets:**
+- `"recent"`: Last 30 events, minimal fields (most common)
+- `"last_failure_context"`: Last failure + 10 events before it
+- `"resets"`: All WORKFLOW_TASK_FAILED events
+
+**Timeout for Large Histories:**
+
+For very large workflows (1000+ events), increase timeout:
+
+```python
+get_workflow_history(
+    workflow_id="megaflow-xyz",
+    preset="recent",
+    timeout_seconds=120  # Default is 60s
+)
+```
 
 ### Query Building
 
