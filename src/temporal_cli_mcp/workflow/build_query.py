@@ -242,22 +242,25 @@ async def validate_workflow_query(query: str) -> Dict[str, Any]:
             validation_issues.append("Unbalanced parentheses")
             suggestions.append("Check that all opening parentheses have matching closing ones")
         
-        # Check for supported fields
+        # Check for potentially unrecognized fields (note: custom search attributes are supported)
         supported_fields = TemporalQueryBuilder.get_supported_fields()
         query_upper = request.query.upper()
-        unknown_fields = []
+        unrecognized_fields = []
         
         # Simple field detection (could be more sophisticated)
         words = request.query.split()
         for word in words:
-            if word and word[0].isupper() and word not in supported_fields:
+            # Clean up field name (remove backticks, quotes, etc.)
+            clean_word = word.strip('`').strip('"').strip("'")
+            if clean_word and clean_word[0].isupper() and clean_word not in supported_fields:
                 # Might be a field name
                 if any(op in request.query for op in ["=", "!=", ">", "<", "STARTS_WITH"]):
-                    unknown_fields.append(word)
+                    unrecognized_fields.append(clean_word)
         
-        if unknown_fields:
-            validation_issues.append(f"Possibly unsupported fields: {unknown_fields}")
-            suggestions.append(f"Supported fields are: {supported_fields}")
+        if unrecognized_fields:
+            # This is just informational, not an error - could be custom search attributes
+            suggestions.append(f"Note: Fields {unrecognized_fields} are not built-in. If these are custom search attributes, ensure they're defined in your Temporal namespace.")
+            suggestions.append(f"Built-in fields: {supported_fields}")
         
         # Check for logical operators
         if " and " in request.query.lower():

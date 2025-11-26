@@ -291,24 +291,8 @@ class TemporalQueryBuilder:
         if open_parens != close_parens:
             errors.append("Unbalanced parentheses in query")
         
-        # Check for supported fields (excluding custom field examples)
-        core_field_names = [
-            SupportedField.WORKFLOW_ID.value,
-            SupportedField.WORKFLOW_TYPE.value,
-            SupportedField.RUN_ID.value,
-            SupportedField.EXECUTION_STATUS.value,
-            SupportedField.START_TIME.value,
-            SupportedField.CLOSE_TIME.value,
-            SupportedField.EXECUTION_TIME.value,
-            SupportedField.BUILD_IDS.value,
-            SupportedField.TASK_QUEUE.value,
-            SupportedField.WORKFLOW_TASK_STARTED_EVENT_ID.value
-        ]
-        has_supported_field = any(field_name in query for field_name in core_field_names)
-        
-        if not has_supported_field:
-            errors.append(f"Query must contain at least one supported field: {', '.join(core_field_names)}")
-        
+        # Note: Temporal supports custom search attributes, so we don't restrict
+        # queries to only core fields. Queries can contain custom attributes only.
         # Check for unsupported operators
         unsupported_found = []
         for unsupported_op, suggested_op in UNSUPPORTED_OPERATORS.items():
@@ -354,8 +338,6 @@ class TemporalQueryBuilder:
                     suggestions.append("For prefix matching, use: WorkflowType STARTS_WITH 'onboard'")
                 elif "Unbalanced" in error:
                     suggestions.append("Check that all quotes and parentheses are properly closed")
-                elif "supported field" in error:
-                    suggestions.append(f"Available fields: {', '.join(cls.get_supported_fields())}")
         
         return {
             "is_valid": is_valid,
@@ -374,13 +356,18 @@ class TemporalQueryBuilder:
                 "TaskQueue = 'my-task-queue'",
                 "StartTime BETWEEN '2025-01-01T00:00:00Z' AND '2025-01-31T23:59:59Z'",
                 "CloseTime IS NOT NULL",
-                "`CustomField` = 'custom-value'"
+                "`CustomField` = 'custom-value'",
+                "CustomUserId = 'user123'",  # Custom search attribute example
+                "FuturhealthPlusID = '7ch3do49P8ZPZ6ZygUVD07lsFRs2'"  # Custom attribute only
             ]
         }
 
     @classmethod
     def get_supported_fields(cls) -> List[str]:
-        """Get list of core supported field names (excluding custom field examples)."""
+        """Get list of built-in field names. 
+        
+        Note: Custom search attributes are also supported but not listed here.
+        """
         return [
             SupportedField.WORKFLOW_ID.value,
             SupportedField.WORKFLOW_TYPE.value,
