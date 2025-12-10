@@ -1,0 +1,108 @@
+{
+  "description": "Pre-built Temporal workflow query templates. Replace placeholders in curly braces with actual values.",
+  "basic_queries": {
+    "all_workflows": "",
+    "by_workflow_type": "WorkflowType = '{workflow_type}'",
+    "by_workflow_id": "WorkflowId = '{workflow_id}'",
+    "by_status": "ExecutionStatus = '{status}'",
+    "by_task_queue": "TaskQueue = '{task_queue}'"
+  },
+  "status_queries": {
+    "running_workflows": "ExecutionStatus = 'Running'",
+    "failed_workflows": "ExecutionStatus = 'Failed'",
+    "completed_workflows": "ExecutionStatus = 'Completed'",
+    "canceled_workflows": "ExecutionStatus = 'Canceled'",
+    "terminated_workflows": "ExecutionStatus = 'Terminated'",
+    "timed_out_workflows": "ExecutionStatus = 'TimedOut'",
+    "failed_or_canceled": "ExecutionStatus IN ('Failed', 'Canceled', 'TimedOut')",
+    "not_completed": "ExecutionStatus != 'Completed'"
+  },
+  "prefix_matching": {
+    "workflow_type_prefix": "WorkflowType STARTS_WITH '{prefix}'",
+    "workflow_id_prefix": "WorkflowId STARTS_WITH '{prefix}'",
+    "patient_workflows": "WorkflowType STARTS_WITH 'patient'",
+    "onboarding_workflows": "WorkflowType STARTS_WITH 'onboard'",
+    "service_workflows": "WorkflowType STARTS_WITH 'service-'"
+  },
+  "time_based": {
+    "started_after": "StartTime > '{iso_datetime}'",
+    "started_before": "StartTime < '{iso_datetime}'",
+    "started_today": "StartTime > '{today_start}'",
+    "started_in_range": "StartTime BETWEEN '{start_date}' AND '{end_date}'",
+    "completed_after": "CloseTime > '{iso_datetime}'",
+    "completed_before": "CloseTime < '{iso_datetime}'",
+    "still_running": "CloseTime IS NULL",
+    "already_completed": "CloseTime IS NOT NULL",
+    "recent_failures": "ExecutionStatus = 'Failed' AND CloseTime > '{cutoff_date}'"
+  },
+  "custom_attributes": {
+    "by_customer_id": "CustomerId = '{customer_id}'",
+    "by_tenant_id": "`tenant-id` = '{tenant_id}'",
+    "by_environment": "Environment = '{environment}'",
+    "by_region": "Region = '{region}'",
+    "high_priority": "Priority = 1",
+    "urgent_workflows": "IsUrgent = true",
+    "by_priority_range": "Priority BETWEEN {min_priority} AND {max_priority}",
+    "requires_approval": "RequiresApproval = true",
+    "production_failures": "Environment = 'prod' AND ExecutionStatus = 'Failed'"
+  },
+  "combined_queries": {
+    "running_recent": "ExecutionStatus = 'Running' AND StartTime > '{date}'",
+    "failed_by_type": "WorkflowType = '{type}' AND ExecutionStatus = 'Failed'",
+    "customer_running": "CustomerId = '{customer_id}' AND ExecutionStatus = 'Running'",
+    "urgent_unresolved": "IsUrgent = true AND CloseTime IS NULL",
+    "high_priority_failed": "Priority = 1 AND ExecutionStatus = 'Failed'",
+    "production_running_old": "Environment = 'prod' AND ExecutionStatus = 'Running' AND StartTime < '{cutoff_date}'",
+    "customer_failures_recent": "CustomerId = '{customer_id}' AND ExecutionStatus = 'Failed' AND CloseTime > '{date}'"
+  },
+  "debugging": {
+    "workflows_with_retries": "RetryCount > {threshold}",
+    "long_running": "ExecutionStatus = 'Running' AND StartTime < '{cutoff_date}'",
+    "by_build_id": "BuildIds = '{build_id}'",
+    "failed_with_retries": "ExecutionStatus = 'Failed' AND RetryCount > {threshold}",
+    "stuck_workflows": "ExecutionStatus = 'Running' AND StartTime < '{very_old_date}'"
+  },
+  "business_use_cases": {
+    "patient_onboarding_failed": "WorkflowType STARTS_WITH 'patient-onboard' AND ExecutionStatus = 'Failed'",
+    "high_value_orders": "WorkflowType = 'OrderProcessing' AND Amount > {amount}",
+    "support_tickets_pending": "WorkflowType STARTS_WITH 'support' AND RequiresApproval = true AND CloseTime IS NULL",
+    "deployments_by_env": "WorkflowType = 'Deployment' AND Environment = '{environment}'",
+    "failed_payments": "WorkflowType = 'PaymentProcessing' AND ExecutionStatus = 'Failed'",
+    "tenant_specific": "`tenant-id` = '{tenant_id}' AND ExecutionStatus IN ('Running', 'Failed')"
+  },
+  "multiple_values": {
+    "multiple_types": "WorkflowType IN ('{type1}', '{type2}', '{type3}')",
+    "multiple_statuses": "ExecutionStatus IN ('Failed', 'Canceled', 'TimedOut')",
+    "multiple_workflow_ids": "WorkflowId IN ('{id1}', '{id2}', '{id3}')",
+    "multiple_environments": "Environment IN ('staging', 'prod', 'dev')",
+    "multiple_priorities": "Priority IN (1, 2, 3)"
+  },
+  "null_checks": {
+    "no_close_time": "CloseTime IS NULL",
+    "has_close_time": "CloseTime IS NOT NULL",
+    "no_custom_field": "CustomField IS NULL",
+    "has_custom_field": "CustomField IS NOT NULL"
+  },
+  "examples_by_industry": {
+    "ecommerce": {
+      "abandoned_carts": "WorkflowType = 'CheckoutFlow' AND ExecutionStatus = 'Running' AND StartTime < '{cutoff_date}'",
+      "failed_orders": "WorkflowType = 'OrderProcessing' AND ExecutionStatus = 'Failed'",
+      "high_value_orders_pending": "Amount > 1000.0 AND ExecutionStatus = 'Running'"
+    },
+    "healthcare": {
+      "urgent_patient_cases": "WorkflowType STARTS_WITH 'patient' AND IsUrgent = true",
+      "failed_onboarding": "WorkflowType = 'PatientOnboarding' AND ExecutionStatus = 'Failed'",
+      "compliance_required": "RequiresCompliance = true AND ReviewStatus = 'pending'"
+    },
+    "fintech": {
+      "high_risk_transactions": "RiskScore > 75.0 AND ExecutionStatus = 'Running'",
+      "failed_payments": "WorkflowType = 'PaymentProcessing' AND ExecutionStatus = 'Failed'",
+      "requires_approval": "TransactionAmount > 10000.0 AND RequiresApproval = true"
+    },
+    "saas": {
+      "tenant_failures": "`tenant-id` = '{tenant_id}' AND ExecutionStatus = 'Failed'",
+      "premium_tier": "TierLevel = 'premium' AND IsActive = true",
+      "region_specific": "Region = 'us-west-2' AND ExecutionStatus IN ('Running', 'Failed')"
+    }
+  }
+}

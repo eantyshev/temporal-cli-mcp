@@ -1,0 +1,140 @@
+{
+  "description": "Temporal workflow event types reference for filtering and analysis",
+  "workflow_lifecycle": {
+    "WorkflowExecutionStarted": "Workflow execution has started",
+    "WorkflowExecutionCompleted": "Workflow completed successfully",
+    "WorkflowExecutionFailed": "Workflow execution failed",
+    "WorkflowExecutionTimedOut": "Workflow exceeded timeout",
+    "WorkflowExecutionCanceled": "Workflow was canceled",
+    "WorkflowExecutionTerminated": "Workflow was forcefully terminated",
+    "WorkflowExecutionContinuedAsNew": "Workflow continued as new execution"
+  },
+  "workflow_task": {
+    "WorkflowTaskScheduled": "Workflow task scheduled for worker",
+    "WorkflowTaskStarted": "Worker started processing workflow task",
+    "WorkflowTaskCompleted": "Workflow task completed successfully",
+    "WorkflowTaskTimedOut": "Workflow task exceeded timeout",
+    "WorkflowTaskFailed": "Workflow task failed"
+  },
+  "activity_task": {
+    "ActivityTaskScheduled": "Activity scheduled for execution",
+    "ActivityTaskStarted": "Activity execution started",
+    "ActivityTaskCompleted": "Activity completed successfully",
+    "ActivityTaskFailed": "Activity execution failed",
+    "ActivityTaskTimedOut": "Activity exceeded timeout",
+    "ActivityTaskCancelRequested": "Activity cancellation requested",
+    "ActivityTaskCanceled": "Activity was canceled"
+  },
+  "timer": {
+    "TimerStarted": "Timer started",
+    "TimerFired": "Timer fired",
+    "TimerCanceled": "Timer was canceled"
+  },
+  "signal": {
+    "WorkflowExecutionSignaled": "Workflow received signal",
+    "SignalExternalWorkflowExecutionInitiated": "Signal to external workflow initiated",
+    "SignalExternalWorkflowExecutionFailed": "Signal to external workflow failed",
+    "ExternalWorkflowExecutionSignaled": "External workflow was signaled"
+  },
+  "child_workflow": {
+    "StartChildWorkflowExecutionInitiated": "Child workflow start initiated",
+    "StartChildWorkflowExecutionFailed": "Child workflow start failed",
+    "ChildWorkflowExecutionStarted": "Child workflow started",
+    "ChildWorkflowExecutionCompleted": "Child workflow completed",
+    "ChildWorkflowExecutionFailed": "Child workflow failed",
+    "ChildWorkflowExecutionCanceled": "Child workflow canceled",
+    "ChildWorkflowExecutionTerminated": "Child workflow terminated",
+    "ChildWorkflowExecutionTimedOut": "Child workflow timed out"
+  },
+  "marker": {
+    "MarkerRecorded": "Marker recorded in workflow history"
+  },
+  "cancel": {
+    "WorkflowExecutionCancelRequested": "Workflow cancellation requested",
+    "RequestCancelExternalWorkflowExecutionInitiated": "External workflow cancel requested",
+    "RequestCancelExternalWorkflowExecutionFailed": "External workflow cancel failed",
+    "ExternalWorkflowExecutionCancelRequested": "External workflow received cancel request"
+  },
+  "update": {
+    "WorkflowExecutionUpdateAccepted": "Workflow update accepted",
+    "WorkflowExecutionUpdateCompleted": "Workflow update completed",
+    "WorkflowExecutionUpdateRejected": "Workflow update rejected"
+  },
+  "categorized_for_filtering": {
+    "failure_events": [
+      "WorkflowExecutionFailed",
+      "ActivityTaskFailed",
+      "ChildWorkflowExecutionFailed",
+      "WorkflowTaskFailed",
+      "SignalExternalWorkflowExecutionFailed",
+      "StartChildWorkflowExecutionFailed",
+      "RequestCancelExternalWorkflowExecutionFailed"
+    ],
+    "completion_events": [
+      "WorkflowExecutionCompleted",
+      "ActivityTaskCompleted",
+      "ChildWorkflowExecutionCompleted",
+      "WorkflowTaskCompleted"
+    ],
+    "cancellation_events": [
+      "WorkflowExecutionCanceled",
+      "ActivityTaskCanceled",
+      "ChildWorkflowExecutionCanceled",
+      "TimerCanceled"
+    ],
+    "timeout_events": [
+      "WorkflowExecutionTimedOut",
+      "ActivityTaskTimedOut",
+      "ChildWorkflowExecutionTimedOut",
+      "WorkflowTaskTimedOut"
+    ],
+    "started_events": [
+      "WorkflowExecutionStarted",
+      "ActivityTaskStarted",
+      "ChildWorkflowExecutionStarted",
+      "WorkflowTaskStarted",
+      "TimerStarted"
+    ],
+    "verbose_events": [
+      "TimerFired",
+      "ActivityTaskCancelRequested",
+      "MarkerRecorded",
+      "WorkflowTaskScheduled",
+      "WorkflowTaskStarted"
+    ],
+    "critical_events": [
+      "WorkflowExecutionStarted",
+      "WorkflowExecutionCompleted",
+      "WorkflowExecutionFailed",
+      "ActivityTaskFailed",
+      "ChildWorkflowExecutionFailed",
+      "WorkflowExecutionSignaled"
+    ]
+  },
+  "use_cases": {
+    "debugging_failures": [
+      "WorkflowExecutionFailed",
+      "ActivityTaskFailed",
+      "ChildWorkflowExecutionFailed",
+      "WorkflowTaskFailed"
+    ],
+    "tracking_signals": [
+      "WorkflowExecutionSignaled",
+      "SignalExternalWorkflowExecutionInitiated",
+      "ExternalWorkflowExecutionSignaled"
+    ],
+    "monitoring_activities": [
+      "ActivityTaskScheduled",
+      "ActivityTaskStarted",
+      "ActivityTaskCompleted",
+      "ActivityTaskFailed"
+    ],
+    "workflow_lifecycle_only": [
+      "WorkflowExecutionStarted",
+      "WorkflowExecutionCompleted",
+      "WorkflowExecutionFailed",
+      "WorkflowExecutionCanceled",
+      "WorkflowExecutionTerminated"
+    ]
+  }
+}

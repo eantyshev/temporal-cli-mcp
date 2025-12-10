@@ -1,0 +1,77 @@
+{
+  "description": "Common jq filter patterns for Temporal workflow history processing",
+  "basic_filters": {
+    "count_events": ".events | length",
+    "list_event_types": "[.events[] | .eventType] | unique | sort",
+    "first_n_events": ".events[0:{n}]",
+    "last_n_events": ".events[-{n}:]",
+    "events_range": ".events[{start}:{end}]"
+  },
+  "event_type_filtering": {
+    "failures_only": ".events[] | select(.eventType | contains(\"Failed\"))",
+    "started_events": ".events[] | select(.eventType | contains(\"Started\"))",
+    "completed_events": ".events[] | select(.eventType | contains(\"Completed\"))",
+    "activity_events": ".events[] | select(.eventType | contains(\"Activity\"))",
+    "signal_events": ".events[] | select(.eventType | contains(\"Signal\"))",
+    "timer_events": ".events[] | select(.eventType | contains(\"Timer\"))",
+    "workflow_task_events": ".events[] | select(.eventType | contains(\"WorkflowTask\"))"
+  },
+  "critical_path": {
+    "workflow_lifecycle": ".events[] | select(.eventType | test(\"WorkflowExecutionStarted|WorkflowExecutionCompleted|WorkflowExecutionFailed\"))",
+    "critical_events": ".events[] | select(.eventType | test(\"WorkflowExecutionStarted|WorkflowExecutionCompleted|WorkflowExecutionFailed|ActivityTaskFailed|ChildWorkflowExecutionFailed|Signal\"))",
+    "failure_chain": ".events[] | select(.eventType | test(\"Failed|Canceled|Terminated|TimedOut\"))"
+  },
+  "exclude_patterns": {
+    "exclude_verbose": ".events[] | select(.eventType | test(\"TimerFired|ActivityTaskCancelRequested|MarkerRecorded|WorkflowTaskScheduled|WorkflowTaskStarted\") | not)",
+    "exclude_workflow_tasks": ".events[] | select(.eventType | contains(\"WorkflowTask\") | not)",
+    "exclude_timers": ".events[] | select(.eventType | contains(\"Timer\") | not)"
+  },
+  "statistics": {
+    "event_counts_by_type": "[.events[] | .eventType] | group_by(.) | map({type: .[0], count: length}) | sort_by(-.count)",
+    "event_counts_simple": "[.events[] | .eventType] | group_by(.) | map({type: .[0], count: length})",
+    "total_activities": "[.events[] | select(.eventType | contains(\"Activity\"))] | length",
+    "total_failures": "[.events[] | select(.eventType | contains(\"Failed\"))] | length",
+    "activity_types": "[.events[] | select(.activityTaskScheduledEventAttributes) | .activityTaskScheduledEventAttributes.activityType.name] | unique"
+  },
+  "payload_extraction": {
+    "workflow_input": ".events[0].workflowExecutionStartedEventAttributes.input.payloads[0].data",
+    "workflow_result": ".events[] | select(.workflowExecutionCompletedEventAttributes) | .workflowExecutionCompletedEventAttributes.result.payloads[0].data",
+    "activity_inputs": ".events[] | select(.activityTaskScheduledEventAttributes) | .activityTaskScheduledEventAttributes.input.payloads[0].data",
+    "activity_results": ".events[] | select(.activityTaskCompletedEventAttributes) | .activityTaskCompletedEventAttributes.result.payloads[0].data",
+    "signal_payloads": ".events[] | select(.workflowExecutionSignaledEventAttributes) | .workflowExecutionSignaledEventAttributes.input.payloads[0].data"
+  },
+  "summary_views": {
+    "event_summary": "{total: (.events | length), types: ([.events[] | .eventType] | group_by(.) | map({type: .[0], count: length}))}",
+    "first_and_last": "{first: .events[0], last: .events[-1]}",
+    "first_five_last_five": "{first_5: .events[0:5], last_5: .events[-5:]}",
+    "failures_summary": "{total_failures: ([.events[] | select(.eventType | contains(\"Failed\"))] | length), failure_events: [.events[] | select(.eventType | contains(\"Failed\")) | {eventId, eventType}]}"
+  },
+  "formatted_output": {
+    "compact_events": ".events[] | {eventId, eventType}",
+    "events_with_time": ".events[] | {eventId, eventType, eventTime}",
+    "activity_summary": ".events[] | select(.activityTaskCompletedEventAttributes) | {eventId, activityType: .activityTaskCompletedEventAttributes.activityType.name, scheduledEventId: .activityTaskCompletedEventAttributes.scheduledEventId}",
+    "failure_details": ".events[] | select(.eventType | contains(\"Failed\")) | {eventId, eventType, message: (.workflowExecutionFailedEventAttributes.failure.message // .activityTaskFailedEventAttributes.failure.message // \"N/A\")}"
+  },
+  "advanced_filters": {
+    "events_after_id": ".events[] | select(.eventId > {event_id})",
+    "events_before_id": ".events[] | select(.eventId < {event_id})",
+    "events_in_id_range": ".events[] | select(.eventId >= {start_id} and .eventId <= {end_id})",
+    "specific_activity_type": ".events[] | select(.activityTaskScheduledEventAttributes.activityType.name == \"{activity_name}\")"
+  },
+  "decode_payloads": {
+    "decode_workflow_input": ".events[0].workflowExecutionStartedEventAttributes.input.payloads[0].data |= (@base64d | try fromjson catch .)",
+    "decode_all_activity_results": ".events |= map(if .activityTaskCompletedEventAttributes.result.payloads then .activityTaskCompletedEventAttributes.result.payloads |= map(.data |= (@base64d | try fromjson catch .)) else . end)",
+    "decode_workflow_result": ".events |= map(if .workflowExecutionCompletedEventAttributes.result.payloads then .workflowExecutionCompletedEventAttributes.result.payloads |= map(.data |= (@base64d | try fromjson catch .)) else . end)"
+  },
+  "conditional_filters": {
+    "large_history_summary": "if (.events | length) > 500 then {event_counts: ([.events[] | .eventType] | group_by(.) | map({type: .[0], count: length})), first_5: .events[0:5], last_5: .events[-5:]} else .events end",
+    "failures_or_all": "if ([.events[] | select(.eventType | contains(\"Failed\"))] | length) > 0 then [.events[] | select(.eventType | contains(\"Failed\"))] else .events[0:10] end"
+  },
+  "workflow_list_filters": {
+    "extract_workflow_ids": ".workflowExecutions[].execution.workflowId",
+    "workflows_summary": ".workflowExecutions[] | {workflowId: .execution.workflowId, workflowType: .type.name, status: .status, startTime: .startTime}",
+    "count_workflows": ".workflowExecutions | length",
+    "group_by_status": ".workflowExecutions | group_by(.status) | map({status: .[0].status, count: length})",
+    "group_by_type": ".workflowExecutions | group_by(.type.name) | map({type: .[0].type.name, count: length})"
+  }
+}
