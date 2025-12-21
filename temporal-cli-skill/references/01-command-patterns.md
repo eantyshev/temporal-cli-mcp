@@ -58,7 +58,7 @@ temporal --env prod -o json --time-format iso workflow list \
 ```bash
 # Extract workflow IDs and statuses
 temporal --env staging -o json --time-format iso workflow list --limit 10 | \
-  jq '.workflowExecutions[] | {id: .execution.workflowId, status: .status}'
+  jq '.[] | {id: .execution.workflowId, status: .status}'
 ```
 
 ### Pretty Print Workflow List
@@ -67,7 +67,7 @@ temporal --env staging -o json --time-format iso workflow list --limit 10 | \
 temporal --env prod -o json --time-format iso workflow list \
   --query "ExecutionStatus = 'Running'" \
   --limit 20 | \
-  jq -r '.workflowExecutions[] | "\(.execution.workflowId) - \(.status) - \(.startTime)"'
+  jq -r '.[] | "\(.execution.workflowId) - \(.status) - \(.startTime)"'
 ```
 
 ### Filter Specific Fields
@@ -75,8 +75,53 @@ temporal --env prod -o json --time-format iso workflow list \
 ```bash
 # Get only workflow IDs
 temporal --env staging -o json --time-format iso workflow list --limit 10 | \
-  jq -r '.workflowExecutions[].execution.workflowId'
+  jq -r '.[].execution.workflowId'
 ```
+
+### Response Structure
+
+```json
+[
+  {
+    "execution": { "workflowId": "string", "runId": "string" },
+    "type": { "name": "string" },
+    "startTime": "2025-12-20T17:11:40.092Z",
+    "closeTime": "2025-12-20T17:12:00.000Z",
+    "status": "WORKFLOW_EXECUTION_STATUS_RUNNING",
+    "historyLength": "39",
+    "parentExecution": { "workflowId": "...", "runId": "..." },
+    "executionTime": "2025-12-20T17:11:40.092Z",
+    "memo": {},
+    "searchAttributes": {
+      "indexedFields": {
+        "CustomField": {
+          "metadata": { "encoding": "base64", "type": "base64" },
+          "data": "base64-encoded-value"
+        }
+      }
+    },
+    "taskQueue": "string",
+    "stateTransitionCount": "7",
+    "historySizeBytes": "2183",
+    "executionDuration": "0.548988323s",
+    "rootExecution": { "workflowId": "...", "runId": "..." }
+  }
+]
+```
+
+**Field availability:**
+- `closeTime`, `historyLength`, `stateTransitionCount`, `historySizeBytes`, `executionDuration` - only for closed workflows
+- `parentExecution` - only for child workflows
+
+**Key jq paths:**
+
+| Field | jq Path |
+|-------|---------|
+| Workflow ID | `.[].execution.workflowId` |
+| Status | `.[].status` |
+| Type name | `.[].type.name` |
+| Parent workflow | `.[].parentExecution.workflowId` |
+| Task queue | `.[].taskQueue` |
 
 ---
 
@@ -130,6 +175,16 @@ FAILED_COUNT=$(temporal --env staging -o json --time-format iso workflow count \
 echo "There are $FAILED_COUNT failed workflows"
 ```
 
+### Response Structure
+
+```json
+{
+  "count": "5896"
+}
+```
+
+**Note:** Count is returned as a string, not an integer. Use `jq -r '.count'` to extract.
+
 ---
 
 ## Describe Workflow
@@ -179,6 +234,68 @@ else
   echo "Workflow status: $STATUS"
 fi
 ```
+
+### Response Structure
+
+```json
+{
+  "executionConfig": {
+    "taskQueue": { "name": "string", "kind": "TASK_QUEUE_KIND_NORMAL" },
+    "workflowExecutionTimeout": "0s",
+    "workflowRunTimeout": "0s",
+    "defaultWorkflowTaskTimeout": "60s"
+  },
+  "workflowExecutionInfo": {
+    "execution": { "workflowId": "string", "runId": "string" },
+    "type": { "name": "string" },
+    "startTime": "2025-12-20T17:11:40.092Z",
+    "status": "WORKFLOW_EXECUTION_STATUS_RUNNING",
+    "historyLength": "39",
+    "searchAttributes": { "indexedFields": { ... } },
+    "autoResetPoints": {
+      "points": [
+        { "buildId": "string", "firstWorkflowTaskCompletedId": "4", "resettable": true }
+      ]
+    },
+    "taskQueue": "string",
+    "stateTransitionCount": "24",
+    "historySizeBytes": "7124",
+    "firstRunId": "string"
+  },
+  "workflowExtendedInfo": {
+    "runExpirationTime": "0001-01-01T00:00:00Z",
+    "originalStartTime": "2025-12-20T17:11:40.092Z"
+  },
+  "pendingActivities": [
+    {
+      "activityId": "5",
+      "activityType": { "name": "SendEmail" },
+      "state": "PENDING_ACTIVITY_STATE_STARTED",
+      "attempt": 1,
+      "lastStartedTime": "2025-12-20T17:11:41.000Z"
+    }
+  ],
+  "pendingChildren": [
+    {
+      "workflowId": "string",
+      "workflowTypeName": "ChildFlow",
+      "parentClosePolicy": "PARENT_CLOSE_POLICY_TERMINATE"
+    }
+  ]
+}
+```
+
+**Note:** `pendingActivities` and `pendingChildren` are `null` when empty.
+
+**Key jq paths:**
+
+| Field | jq Path |
+|-------|---------|
+| Workflow ID | `.workflowExecutionInfo.execution.workflowId` |
+| Status | `.workflowExecutionInfo.status` |
+| Task queue | `.executionConfig.taskQueue.name` |
+| Pending activity count | `.pendingActivities \| length` |
+| Reset points | `.workflowExecutionInfo.autoResetPoints.points` |
 
 ---
 
@@ -232,6 +349,75 @@ temporal --env prod -o json --time-format iso workflow show \
   --workflow-id "failed-workflow" | \
   jq '.events[] | select(.eventType | contains("Failed"))'
 ```
+
+### Response Structure
+
+```json
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": "2025-12-21T09:40:30.266Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "version": "100529",
+      "taskId": "108501233",
+      "<eventType>Attributes": { }
+    }
+  ]
+}
+```
+
+Event attributes are named by event type (e.g., `workflowExecutionStartedEventAttributes`).
+
+#### Key Event Attribute Structures
+
+**WORKFLOW_EXECUTION_STARTED:**
+```json
+"workflowExecutionStartedEventAttributes": {
+  "workflowType": { "name": "MyWorkflow" },
+  "parentWorkflowExecution": { "workflowId": "...", "runId": "..." },
+  "taskQueue": { "name": "my-queue" },
+  "input": { "payloads": [{ "metadata": { "encoding": "..." }, "data": "base64-input" }] },
+  "retryPolicy": { "initialInterval": "1s", "backoffCoefficient": 2, "maximumAttempts": 1 },
+  "attempt": 1
+}
+```
+
+**WORKFLOW_TASK_FAILED (includes non-determinism errors):**
+```json
+"workflowTaskFailedEventAttributes": {
+  "cause": "WORKFLOW_TASK_FAILED_CAUSE_NON_DETERMINISTIC_ERROR",
+  "failure": {
+    "message": "[TMPRL1100] During replay...",
+    "stackTrace": "full stack trace...",
+    "applicationFailureInfo": { "type": "PanicError", "nonRetryable": true }
+  },
+  "identity": "worker-identity"
+}
+```
+
+**WORKFLOW_EXECUTION_FAILED:**
+```json
+"workflowExecutionFailedEventAttributes": {
+  "failure": {
+    "message": "error message",
+    "cause": { },
+    "applicationFailureInfo": { "type": "ErrorType" }
+  },
+  "retryState": "RETRY_STATE_RETRY_POLICY_NOT_SET"
+}
+```
+
+**Key jq paths:**
+
+| Field | jq Path |
+|-------|---------|
+| All event types | `.events[].eventType` |
+| Event count | `.events \| length` |
+| Find failures | `.events[] \| select(.eventType \| test("FAILED"))` |
+| Last failure | `[.events[] \| select(.eventType \| test("FAILED"))] \| last` |
+| Decode input | `.events[0].workflowExecutionStartedEventAttributes.input.payloads[0].data \| @base64d` |
+| Non-deterministic errors | `.events[] \| select(.workflowTaskFailedEventAttributes.cause == "WORKFLOW_TASK_FAILED_CAUSE_NON_DETERMINISTIC_ERROR")` |
 
 ---
 
@@ -352,7 +538,7 @@ temporal --env prod -o json --time-format iso workflow signal \
 WORKFLOW_IDS=$(temporal --env staging -o json --time-format iso workflow list \
   --query "WorkflowType = 'OnboardingFlow' AND ExecutionStatus = 'Running'" \
   --limit 100 | \
-  jq -r '.workflowExecutions[].execution.workflowId')
+  jq -r '.[].execution.workflowId')
 
 # Signal each one
 for WF_ID in $WORKFLOW_IDS; do
@@ -752,7 +938,7 @@ if [ "$FAILED_COUNT" -gt 0 ]; then
   temporal --env "$ENV" -o json --time-format iso workflow list \
     --query "WorkflowType = '$WORKFLOW_TYPE' AND ExecutionStatus = 'Failed'" \
     --limit 10 | \
-    jq -r '.workflowExecutions[] | "\(.execution.workflowId) - \(.closeTime)"'
+    jq -r '.[] | "\(.execution.workflowId) - \(.closeTime)"'
 fi
 ```
 
@@ -770,7 +956,7 @@ SIGNAL_DATA='{"version": "2.0", "feature_flags": {"new_ui": true}}'
 WORKFLOW_IDS=$(temporal --env staging -o json --time-format iso workflow list \
   --query "WorkflowType = '$WORKFLOW_TYPE' AND ExecutionStatus = 'Running'" \
   --limit 100 | \
-  jq -r '.workflowExecutions[].execution.workflowId')
+  jq -r '.[].execution.workflowId')
 
 COUNT=$(echo "$WORKFLOW_IDS" | wc -l)
 echo "Signaling $COUNT workflows..."
