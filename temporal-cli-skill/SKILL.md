@@ -28,6 +28,17 @@ temporal --env <environment> -o json --time-format iso workflow <operation> [arg
 - `-o json` - JSON output format
 - `--time-format iso` - ISO 8601 timestamps
 
+**⚠️ PIPING CAVEAT:** Direct piping from `temporal` to `jq` can fail with mysterious errors. Use one of these patterns instead:
+```bash
+# Option 1: Store in variable (for smaller outputs)
+RESULT=$(temporal --env prod -o json workflow show -w "my-wf")
+echo "$RESULT" | jq '...'
+
+# Option 2: Write to file first (recommended for histories)
+temporal --env prod -o json workflow show -w "my-wf" > /tmp/wf.json
+jq '...' /tmp/wf.json
+```
+
 ## Quick Reference
 
 ### Essential Operations
@@ -69,6 +80,25 @@ temporal --env <environment> -o json --time-format iso workflow <operation> [arg
 7. **Destructive ops?** - Verify [Safety Checks](references/08-safety-checks.md)
 
 ## Key Principles
+
+### 0. Discover Workflow Types First
+
+When searching for workflows by type and you're unsure of the exact type name, **always discover available workflow types first**. Workflow type names in code (e.g., `OnboardingWorkflow`) may differ from the registered name in Temporal (e.g., `PatientOnboarding`).
+
+```bash
+# List recent workflows and extract unique workflow types
+temporal --env prod -o json --time-format iso workflow list --limit 100 | \
+  jq -r '[.[].type.name] | unique | sort | .[]'
+
+# Or find workflows with type names containing a keyword
+temporal --env prod -o json --time-format iso workflow list --limit 200 | \
+  jq -r '[.[].type.name] | unique | .[] | select(test("onboard"; "i"))'
+```
+
+**Why this matters:**
+- Go method names like `handler.PatientOnboarding` register as `PatientOnboarding`, not the struct/file name
+- TypeScript workflow function names may be different from file names
+- Saves time by avoiding trial-and-error with incorrect type names
 
 ### 1. Always Count Before Listing
 
@@ -179,6 +209,18 @@ temporal --env prod -o json --time-format iso workflow show \
   jq '[.events[] | .eventType] | group_by(.) | map({type: .[0], count: length})'
 ```
 
+### Investigate Stuck/Retrying Activities
+
+**⚠️ CRITICAL:** Activity retries are invisible in event history (`workflow show`). While an activity is retrying, the history only shows `ACTIVITY_TASK_SCHEDULED` — no STARTED/FAILED events until the final outcome. Use `workflow describe` → `pendingActivities` instead:
+
+```bash
+# See last failure, attempt count, and next retry time for all pending activities
+temporal --env prod -o json workflow describe -w "stuck-workflow-123" | \
+  jq '.pendingActivities[] | {activityType: .activityType.name, attempt, state, lastFailure: .lastFailure.message, nextRetry: .nextAttemptScheduleTime}'
+```
+
+**When to use this:** Whenever `workflow show` reveals an `ACTIVITY_TASK_SCHEDULED` as the last event with no subsequent STARTED/COMPLETED/FAILED — the activity is retrying, and `pendingActivities` has the error.
+
 ### Customer-Specific Workflows
 ```bash
 # Using custom search attribute
@@ -239,9 +281,11 @@ Pre-built templates available in `assets/`:
 
 1. **Query syntax error?** → Check [Query Construction](references/02-query-construction.md)
 2. **Unknown operator?** → See [Error Handling](references/07-error-handling.md)
-3. **Empty results?** → Try WorkflowId fallback in [Smart Patterns](references/06-smart-patterns.md)
-4. **Large history overwhelming?** → Use [History Filtering](references/05-history-filtering.md)
-5. **Non-deterministic errors?** → Use `TemporalReportedProblems` query (see above) or [Error Handling](references/07-error-handling.md#non-deterministic-workflow-errors)
+3. **Empty results with WorkflowType query?** → Discover actual workflow types first (see Principle 0 above)
+4. **Empty results?** → Try WorkflowId fallback in [Smart Patterns](references/06-smart-patterns.md)
+5. **Large history overwhelming?** → Use [History Filtering](references/05-history-filtering.md)
+6. **Non-deterministic errors?** → Use `TemporalReportedProblems` query (see above) or [Error Handling](references/07-error-handling.md#non-deterministic-workflow-errors)
+7. **Activity stuck with only SCHEDULED event?** → Use `workflow describe` → `pendingActivities` (see "Investigate Stuck/Retrying Activities" above)
 
 ## Next Steps
 

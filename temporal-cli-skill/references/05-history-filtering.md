@@ -16,6 +16,19 @@ jq patterns for filtering and paging Temporal workflow event histories to manage
 
 Large workflow histories (500+ events) can overwhelm context windows and make analysis difficult. Use jq to filter intelligently.
 
+**⚠️ IMPORTANT - Piping Issues:**
+Direct piping from `temporal` to `jq` can fail with mysterious "unknown command" errors. Two reliable alternatives:
+
+```bash
+# Option 1: Store in variable first (works for smaller outputs)
+HISTORY=$(temporal --env prod -o json --time-format iso workflow show -w "my-workflow")
+echo "$HISTORY" | jq '.events[] | select(.eventType | contains("Failed"))'
+
+# Option 2: Write to file first (works for any size, recommended)
+temporal --env prod -o json --time-format iso workflow show -w "my-workflow" > /tmp/wf.json
+jq '.events[] | select(.eventType | contains("Failed"))' /tmp/wf.json
+```
+
 **When to filter:**
 - History has 100+ events
 - You're debugging specific issues
